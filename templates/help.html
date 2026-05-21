@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>帮助中心 - 瓷影新生</title>
+    <style>
+        :root {
+    --bg-primary: linear-gradient(145deg, #f8fafc 0%, #eef2ff 100%);
+    --bg-secondary: rgba(255,255,255,0.9);
+    --bg-tertiary: rgba(0,0,0,0.04);
+    --bg-hover: rgba(251,191,36,0.12);
+    --text-primary: #1e293b;
+    --text-secondary: #475569;
+    --text-accent: #b45309;
+    --text-accent-dark: #92400e;
+    --border-color: rgba(180, 83, 9, 0.2);
+    --success-color: #10b981;
+    --error-color: #ef4444;
+    --canvas-bg: #ffffff;
+    --modal-bg: rgba(255, 255, 255, 0.96);
+    --shadow-lg: 0 8px 32px rgba(0,0,0,0.08);
+    --shadow-md: 0 4px 16px rgba(0,0,0,0.05);
+    --radius-xl: 24px;
+    --radius-lg: 18px;
+    --radius-md: 12px;
+    --transition-base: all 0.3s ease;
+}
+
+        [data-theme="light"] {
+            --bg-primary: linear-gradient(145deg, #f8fafc 0%, #e2e8f0 100%);
+            --bg-secondary: rgba(255,255,255,0.85);
+            --bg-tertiary: rgba(0,0,0,0.08);
+            --bg-hover: rgba(255,215,0,0.15);
+            --text-primary: #1e293b;
+            --text-secondary: #64748b;
+            --text-accent: #b45309;
+            --border-color: rgba(217, 119, 6, 0.2);
+            --canvas-bg: #eef2f7;
+            --modal-bg: rgba(255, 255, 255, 0.94);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Microsoft YaHei', 'Segoe UI', system-ui, sans-serif;
+            background: var(--bg-primary);
+            background-attachment: fixed;
+            min-height: 100vh;
+            color: var(--text-primary);
+            transition: var(--transition-base);
+        }
+
+        /* 导航栏 - 完全和首页一致 */
+        .navbar {
+            background: var(--bg-tertiary);
+            padding: 16px 32px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--border-color);
+            transition: var(--transition-base);
+            box-shadow: var(--shadow-md);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .logo {
+            font-size: 22px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            background: linear-gradient(135deg, var(--text-accent), var(--text-accent-dark));
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            text-decoration: none;
+        }
+
+        .nav-links {
+            display: flex;
+            align-items: center;
+            gap: 24px;
+        }
+
+        .nav-links a {
+            color: var(--text-primary);
+            text-decoration: none;
+            font-size: 15px;
+            padding: 6px 12px;
+            border-radius: var(--radius-md);
+            transition: var(--transition-base);
+        }
+
+        .nav-links a:hover {
+            color: var(--text-accent);
+            background: var(--bg-hover);
+        }
+
+        .nav-links a.active {
+            color: var(--text-accent);
+            background: var(--bg-hover);
+            font-weight: 600;
+        }
+
+        .lang-btn {
+            padding: 6px 12px;
+            border-radius: var(--radius-md);
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            color: var(--text-accent);
+            cursor: pointer;
+            transition: var(--transition-base);
+            font-size: 14px;
+        }
+
+        .lang-btn:hover {
+            background: var(--bg-hover);
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+
+        .hero {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .hero h1 {
+            font-size: 40px;
+            margin-bottom: 12px;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--text-primary), var(--text-accent));
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
+
+        .hero p {
+            color: var(--text-secondary);
+            font-size: 16px;
+        }
+
+        .search-box {
+            max-width: 600px;
+            margin: 0 auto 36px;
+            position: relative;
+        }
+
+        .search-box input {
+            width: 100%;
+            padding: 14px 48px 14px 18px;
+            border-radius: var(--radius-lg);
+            border: 1px solid var(--border-color);
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            font-size: 15px;
+            transition: var(--transition-base);
+        }
+
+        .search-box input:focus {
+            outline: none;
+            border-color: var(--text-accent);
+            background: #fff;
+        }
+
+        .search-icon {
+            position: absolute;
+            right: 16px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 18px;
+            color: var(--text-secondary);
+        }
+
+        .toc {
+            background: var(--bg-secondary);
+            border-radius: var(--radius-xl);
+            padding: 28px;
+            margin-bottom: 36px;
+            border: 1px solid var(--border-color);
+            box-shadow: var(--shadow-lg);
+        }
+
+        .toc h2 {
+            color: var(--text-accent);
+            margin-bottom: 18px;
+            font-size: 20px;
+            font-weight: 600;
+        }
+
+        .toc-list {
+            list-style: none;
+        }
+
+        .toc-list li {
+            margin-bottom: 6px;
+        }
+
+        .toc-list a {
+            color: var(--text-primary);
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 14px;
+            border-radius: var(--radius-md);
+            transition: var(--transition-base);
+            font-size: 15px;
+        }
+
+        .toc-list a:hover {
+            background: var(--bg-hover);
+            color: var(--text-accent);
+        }
+
+        .section {
+            background: var(--bg-secondary);
+            border-radius: var(--radius-xl);
+            padding: 36px;
+            margin-bottom: 28px;
+            border: 1px solid var(--border-color);
+            box-shadow: var(--shadow-lg);
+        }
+
+        .section h2 {
+            color: var(--text-accent);
+            font-size: 24px;
+            margin-bottom: 24px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: 600;
+        }
+
+        .faq-item {
+            margin-bottom: 18px;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 18px;
+        }
+
+        .faq-item:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+            padding-bottom: 0;
+        }
+
+        .faq-question {
+            color: var(--text-primary);
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            transition: var(--transition-base);
+        }
+
+        .faq-question:hover {
+            color: var(--text-accent);
+        }
+
+        .faq-answer {
+            color: var(--text-secondary);
+            line-height: 1.7;
+            padding-left: 28px;
+            display: none;
+            font-size: 15px;
+        }
+
+        .faq-item.open .faq-answer {
+            display: block;
+        }
+
+        .faq-icon {
+            font-size: 12px;
+            color: var(--text-accent);
+            transition: transform 0.3s;
+        }
+
+        .faq-item.open .faq-icon {
+            transform: rotate(90deg);
+        }
+
+        .steps {
+            counter-reset: step;
+        }
+
+        .step {
+            position: relative;
+            padding-left: 56px;
+            margin-bottom: 24px;
+        }
+
+        .step::before {
+            counter-increment: step;
+            content: counter(step);
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 36px;
+            height: 36px;
+            background: linear-gradient(135deg, var(--text-accent), var(--text-accent-dark));
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            color: #fff;
+            font-size: 14px;
+        }
+
+        .step h4 {
+            color: var(--text-accent);
+            font-size: 16px;
+            margin-bottom: 6px;
+            font-weight: 600;
+        }
+
+        .step p, .step li {
+            color: var(--text-secondary);
+            line-height: 1.7;
+            font-size: 15px;
+        }
+
+        .step ul {
+            padding-left: 20px;
+            margin-top: 6px;
+        }
+
+        .contact-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 18px;
+            margin-top: 24px;
+        }
+
+        .contact-card {
+            background: var(--bg-tertiary);
+            border-radius: var(--radius-lg);
+            padding: 24px;
+            text-align: center;
+            border: 1px solid var(--border-color);
+            transition: var(--transition-base);
+        }
+
+        .contact-card:hover {
+            transform: translateY(-3px);
+            border-color: var(--text-accent);
+        }
+
+        .contact-card .icon {
+            font-size: 32px;
+            margin-bottom: 12px;
+            color: var(--text-accent);
+        }
+
+        .contact-card h4 {
+            color: var(--text-accent);
+            margin-bottom: 8px;
+            font-size: 16px;
+        }
+
+        .contact-card p, .contact-card a {
+            color: var(--text-secondary);
+            font-size: 14px;
+            text-decoration: none;
+        }
+
+        .footer {
+            text-align: center;
+            padding: 24px;
+            color: var(--text-secondary);
+            font-size: 14px;
+            border-top: 1px solid var(--border-color);
+            margin-top: 40px;
+        }
+
+        .back-to-top {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            width: 44px;
+            height: 44px;
+            background: linear-gradient(135deg, var(--text-accent), var(--text-accent-dark));
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            cursor: pointer;
+            opacity: 0;
+            visibility: hidden;
+            transition: var(--transition-base);
+            color: #fff;
+            box-shadow: var(--shadow-md);
+        }
+
+        .back-to-top.visible {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        @media (max-width: 768px) {
+            .hero h1 { font-size: 30px; }
+            .navbar { padding: 14px 20px; }
+            .nav-links { gap: 12px; }
+            .section { padding: 24px; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- 导航栏（和首页完全统一） -->
+<nav class="navbar">
+    <a href="/" class="logo" t-zh="🏺 瓷影新生" t-en="🏺 Ceramic Revival">🏺 瓷影新生</a>
+    <div class="nav-links">
+        <a href="/" t-zh="首页" t-en="Home">首页</a>
+        <a href="/gallery" t-zh="修复案例" t-en="Gallery">修复案例</a>
+        <a href="/about" t-zh="关于我们" t-en="About">关于我们</a>
+        <a href="/help" class="active" t-zh="帮助中心" t-en="Help">帮助中心</a>
+        <button class="lang-btn" id="langBtn">中文</button>
+        <a href="javascript:void(0)" id="loginBtn">登录</a>
+    </div>
+</nav>
+
+<div class="container">
+    <div class="hero">
+        <h1 t-zh="帮助中心" t-en="Help Center">帮助中心</h1>
+        <p t-zh="您在使用过程中遇到问题了吗？在这里找到答案" t-en="Have any questions? Find answers here.">您在使用过程中遇到问题了吗？在这里找到答案</p>
+    </div>
+
+    <div class="search-box">
+        <input type="text" placeholder="搜索问题..." id="searchInput" t-zh="搜索问题..." t-en="Search questions...">
+        <span class="search-icon">🔍</span>
+    </div>
+
+    <div class="toc">
+        <h2 t-zh="📑 快速导航" t-en="📑 Quick Navigation">📑 快速导航</h2>
+        <ul class="toc-list">
+            <li><a href="#getting-started"><span class="icon">🚀</span><span t-zh="快速开始" t-en="Getting Started">快速开始</span></a></li>
+            <li><a href="#upload-guide"><span class="icon">📤</span><span t-zh="上传指南" t-en="Upload Guide">上传指南</span></a></li>
+            <li><a href="#view-guide"><span class="icon">👁️</span><span t-zh="查看指南" t-en="View Guide">查看指南</span></a></li>
+            <li><a href="#export-guide"><span class="icon">📥</span><span t-zh="导出指南" t-en="Export Guide">导出指南</span></a></li>
+            <li><a href="#account-guide"><span class="icon">👤</span><span t-zh="账户指南" t-en="Account Guide">账户指南</span></a></li>
+            <li><a href="#faq"><span class="icon">❓</span><span t-zh="常见问题" t-en="FAQ">常见问题</span></a></li>
+            <li><a href="#contact"><span class="icon">📞</span><span t-zh="联系我们" t-en="Contact Us">联系我们</span></a></li>
+        </ul>
+    </div>
+
+    <div class="section" id="getting-started">
+        <h2><span class="icon">🚀</span><span t-zh="快速开始" t-en="Getting Started">快速开始</span></h2>
+        <div class="steps">
+            <div class="step">
+                <h4 t-zh="注册账户" t-en="Register Account">注册账户</h4>
+                <p>访问首页，点击右上角「登录」，然后选择「立即注册」。填写用户名、密码和姓名即可完成注册。</p>
+            </div>
+            <div class="step">
+                <h4 t-zh="准备点云数据" t-en="Prepare Point Cloud Data">准备点云数据</h4>
+                <p>准备好您的古陶瓷点云数据文件，支持以下格式：</p>
+                <ul>
+                    <li>.ply - Stanford Triangle Format</li>
+                    <li>.pcd - Point Cloud Data</li>
+                    <li>.txt - 文本格式 (每行 x y z)</li>
+                    <li>.xyz - XYZ点云格式</li>
+                    <li>.obj - Wavefront OBJ格式</li>
+                </ul>
+            </div>
+            <div class="step">
+                <h4 t-zh="上传文件" t-en="Upload File">上传文件</h4>
+                <p>登录后，在首页上传区域点击或拖拽您的点云文件，然后点击「上传文件」按钮。</p>
+            </div>
+            <div class="step">
+                <h4 t-zh="等待修复" t-en="Wait for Restoration">等待修复</h4>
+                <p>系统会自动使用AI扩散模型进行点云修复，修复时间取决于文件大小，通常需要几分钟。</p>
+            </div>
+            <div class="step">
+                <h4 t-zh="查看和导出" t-en="View & Export">查看和导出</h4>
+                <p>修复完成后，您可以在三维视图中查看修复效果，并导出修复后的数据。</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="section" id="upload-guide">
+        <h2><span class="icon">📤</span><span t-zh="上传指南" t-en="Upload Guide">上传指南</span></h2>
+        <div class="faq-item">
+            <div class="faq-question"><span class="faq-icon">▶</span>支持哪些文件格式？</div>
+            <div class="faq-answer">目前支持 .ply、.pcd、.txt、.xyz、.obj 五种常见的点云数据格式。</div>
+        </div>
+        <div class="faq-item">
+            <div class="faq-question"><span class="faq-icon">▶</span>文件大小有限制吗？</div>
+            <div class="faq-answer">单个文件大小限制为100MB。如果您的文件超过此限制，建议先进行点云降采样处理。</div>
+        </div>
+    </div>
+
+    <div class="section" id="view-guide">
+        <h2><span class="icon">👁️</span><span t-zh="查看指南" t-en="View Guide">查看指南</span></h2>
+        <div class="faq-item">
+            <div class="faq-question"><span class="faq-icon">▶</span>如何旋转、缩放和平移视角？</div>
+            <div class="faq-answer">
+                旋转：鼠标左键拖拽<br>
+                缩放：滚轮滚动<br>
+                平移：鼠标右键拖拽
+            </div>
+        </div>
+        <div class="faq-item">
+            <div class="faq-question"><span class="faq-icon">▶</span>如何对比修复前后效果？</div>
+            <div class="faq-answer">使用对比视图下拉框，可切换修复后 / 原始 / 混合对比模式。</div>
+        </div>
+    </div>
+
+    <div class="section" id="export-guide">
+        <h2><span class="icon">📥</span><span t-zh="导出指南" t-en="Export Guide">导出指南</span></h2>
+        <div class="faq-item">
+            <div class="faq-question"><span class="faq-icon">▶</span>可以导出哪些格式？</div>
+            <div class="faq-answer">支持导出点云 .xyz、三维模型 .obj，以及视图截图 PNG。</div>
+        </div>
+    </div>
+
+    <div class="section" id="account-guide">
+        <h2><span class="icon">👤</span><span t-zh="账户指南" t-en="Account Guide">账户指南</span></h2>
+        <div class="faq-item">
+            <div class="faq-question"><span class="faq-icon">▶</span>忘记密码怎么办？</div>
+            <div class="faq-answer">请联系技术支持邮箱，我们将协助您重置密码。</div>
+        </div>
+    </div>
+
+    <div class="section" id="faq">
+        <h2><span class="icon">❓</span><span t-zh="常见问题" t-en="FAQ">常见问题</span></h2>
+        <div class="faq-item">
+            <div class="faq-question"><span class="faq-icon">▶</span>修复需要多长时间？</div>
+            <div class="faq-answer">一般 1-3 分钟，取决于点云大小与复杂度。</div>
+        </div>
+        <div class="faq-item">
+            <div class="faq-question"><span class="faq-icon">▶</span>我的数据安全吗？</div>
+            <div class="faq-answer">所有数据加密存储，仅用于修复，不会泄露。</div>
+        </div>
+    </div>
+
+    <div class="section" id="contact">
+        <h2><span class="icon">📞</span><span t-zh="联系我们" t-en="Contact Us">联系我们</span></h2>
+        <div class="contact-cards">
+            <div class="contact-card"><div class="icon">📧</div><h4>邮箱</h4><p>666888789@qq.com</p></div>
+            <div class="contact-card"><div class="icon">📞</div><h4>电话</h4><p>400-888-6666</p></div>
+        </div>
+    </div>
+</div>
+
+<div class="footer">
+    <p t-zh="瓷影新生 © 2026 | 古陶瓷数字化智能修复服务平台" t-en="Ceramic Revival © 2026">瓷影新生 © 2026 | 古陶瓷数字化智能修复服务平台</p>
+</div>
+
+<div class="back-to-top" id="backToTop" onclick="scrollToTop()">↑</div>
+
+<!-- 登录弹窗（和首页完全一样） -->
+<div id="loginModal" style="display: none; position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center;">
+    <div style="background: white; padding: 30px; border-radius: 24px; width: 320px; box-shadow: 0 20px 35px rgba(0,0,0,0.2); text-align: center;">
+        <h3 style="margin-bottom: 20px; color: #b45309;">用户登录</h3>
+        <input type="text" id="loginUsername" placeholder="用户名" style="width: 100%; padding: 10px; margin-bottom: 12px; border: 1px solid #ccc; border-radius: 40px;">
+        <input type="password" id="loginPassword" placeholder="密码" style="width: 100%; padding: 10px; margin-bottom: 20px; border: 1px solid #ccc; border-radius: 40px;">
+        <button id="loginSubmitBtn" style="background: #b45309; color: white; border: none; padding: 10px 20px; border-radius: 40px; width: 100%; cursor: pointer;">登录</button>
+        <button id="closeModalBtn" style="margin-top: 15px; background: none; border: none; color: #666; cursor: pointer;">关闭</button>
+    </div>
+</div>
+
+<script>
+    // FAQ 折叠
+    document.querySelectorAll('.faq-question').forEach(q => {
+        q.addEventListener('click', () => q.parentElement.classList.toggle('open'));
+    });
+
+    // 平滑滚动
+    document.querySelectorAll('.toc-list a').forEach(link => {
+        link.addEventListener('click', e => {
+            e.preventDefault();
+            const id = link.getAttribute('href').substring(1);
+            document.getElementById(id).scrollIntoView({ behavior: 'smooth' });
+        });
+    });
+
+    // 返回顶部
+    window.addEventListener('scroll', () => {
+        document.getElementById('backToTop').classList.toggle('visible', window.scrollY > 300);
+    });
+    function scrollToTop() { window.scrollTo({ top: 0, behavior: 'smooth' }); }
+
+    // 搜索
+    document.getElementById('searchInput').addEventListener('input', e => {
+        const val = e.target.value.toLowerCase();
+        document.querySelectorAll('.faq-item').forEach(item => {
+            item.style.display = item.textContent.toLowerCase().includes(val) ? 'block' : 'none';
+        });
+    });
+
+    // 中英文切换
+    let lang = localStorage.getItem('lang') || 'zh';
+    function switchLang() {
+        lang = lang === 'zh' ? 'en' : 'zh';
+        localStorage.setItem('lang', lang);
+        applyLang();
+        document.getElementById('langBtn').innerText = lang === 'zh' ? '中文' : 'English';
+    }
+    function applyLang() {
+        document.querySelectorAll('[t-zh][t-en]').forEach(el => {
+            el.innerText = lang === 'zh' ? el.getAttribute('t-zh') : el.getAttribute('t-en');
+        });
+    }
+    document.getElementById('langBtn').addEventListener('click', switchLang);
+    window.onload = () => { applyLang(); document.getElementById('langBtn').innerText = lang === 'zh' ? '中文' : 'English'; };
+
+    // 登录弹窗
+    const modal = document.getElementById('loginModal');
+    document.getElementById('loginBtn').onclick = () => modal.style.display = 'flex';
+    document.getElementById('closeModalBtn').onclick = () => modal.style.display = 'none';
+    modal.onclick = e => e.target === modal && (modal.style.display = 'none');
+</script>
+</body>
+</html>

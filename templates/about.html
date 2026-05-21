@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title t-zh="关于我们 - 瓷影新生" t-en="About - Ceramic Revival">关于我们 - 瓷影新生</title>
+    
+    <style>
+        :root {
+    --bg-primary: linear-gradient(145deg, #f8fafc 0%, #eef2ff 100%);
+    --bg-secondary: rgba(255,255,255,0.9);
+    --bg-tertiary: rgba(0,0,0,0.04);
+    --bg-hover: rgba(251,191,36,0.12);
+    --text-primary: #1e293b;
+    --text-secondary: #475569;
+    --text-accent: #b45309;
+    --text-accent-dark: #92400e;
+    --border-color: rgba(180, 83, 9, 0.2);
+    --success-color: #10b981;
+    --error-color: #ef4444;
+    --canvas-bg: #ffffff;
+    --modal-bg: rgba(255, 255, 255, 0.96);
+    --shadow-lg: 0 8px 32px rgba(0,0,0,0.08);
+    --shadow-md: 0 4px 16px rgba(0,0,0,0.05);
+    --radius-xl: 24px;
+    --radius-lg: 18px;
+    --radius-md: 12px;
+    --transition-base: all 0.3s ease;
+}
+
+        [data-theme="light"] {
+            --bg-primary: linear-gradient(145deg, #f8fafc 0%, #e2e8f0 100%);
+            --bg-secondary: rgba(255,255,255,0.85);
+            --bg-tertiary: rgba(0,0,0,0.08);
+            --bg-hover: rgba(255,215,0,0.15);
+            --text-primary: #1e293b;
+            --text-secondary: #64748b;
+            --text-accent: #b45309;
+            --border-color: rgba(217, 119, 6, 0.2);
+            --canvas-bg: #eef2f7;
+            --modal-bg: rgba(255, 255, 255, 0.94);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Microsoft YaHei', 'Segoe UI', system-ui, sans-serif;
+            background: var(--bg-primary);
+            background-attachment: fixed;
+            min-height: 100vh;
+            color: var(--text-primary);
+            transition: var(--transition-base);
+            animation: fadeInBody 0.6s ease;
+            padding-bottom: 80px;
+        }
+
+        @keyframes fadeInBody {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .navbar {
+            background: var(--bg-tertiary);
+            padding: 16px 32px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--border-color);
+            transition: var(--transition-base);
+            box-shadow: var(--shadow-md);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .logo {
+            font-size: 22px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            background: linear-gradient(135deg, var(--text-accent), var(--text-accent-dark));
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            text-decoration: none;
+        }
+
+        .nav-links {
+            display: flex;
+            align-items: center;
+            gap: 24px;
+        }
+
+        .nav-links a {
+            color: var(--text-primary);
+            text-decoration: none;
+            font-size: 15px;
+            padding: 6px 12px;
+            border-radius: var(--radius-md);
+            transition: var(--transition-base);
+        }
+
+        .nav-links a:hover {
+            color: var(--text-accent);
+            background: var(--bg-hover);
+        }
+
+        .hamburger {
+            display: none;
+            cursor: pointer;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .hamburger span {
+            width: 26px;
+            height: 3px;
+            background: var(--text-accent);
+            border-radius: 3px;
+            transition: var(--transition-base);
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 40px 30px;
+        }
+
+        .hero {
+            text-align: center;
+            margin-bottom: 50px;
+            animation: slideUp 0.6s ease;
+        }
+
+        @keyframes slideUp {
+            from { transform: translateY(20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        .hero h1 {
+            font-size: 44px;
+            margin-bottom: 16px;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--text-primary) 30%, var(--text-accent) 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
+
+        .hero p {
+            color: var(--text-secondary);
+            font-size: 18px;
+            letter-spacing: 0.5px;
+            max-width: 800px;
+            margin: 0 auto;
+            line-height: 1.8;
+        }
+
+        .section {
+            margin-bottom: 60px;
+        }
+
+        .section-title {
+            font-size: 32px;
+            color: var(--text-accent);
+            margin-bottom: 30px;
+            text-align: center;
+            font-weight: 600;
+        }
+
+        .concept-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 24px;
+        }
+
+        .concept-card {
+            background: var(--bg-secondary);
+            border-radius: var(--radius-xl);
+            padding: 30px;
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--border-color);
+            box-shadow: var(--shadow-lg);
+            transition: var(--transition-base);
+            text-align: center;
+        }
+
+        .concept-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 32px rgba(180,83,9,0.1);
+        }
+
+        .concept-icon {
+            font-size: 48px;
+            margin-bottom: 15px;
+            color: var(--text-accent);
+        }
+
+        .concept-card h3 {
+            color: var(--text-accent);
+            font-size: 22px;
+            margin-bottom: 15px;
+            font-weight: 600;
+        }
+
+        .concept-card p {
+            color: var(--text-secondary);
+            line-height: 1.8;
+            font-size: 15px;
+        }
+
+        .team-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 24px;
+        }
+
+        .team-card {
+            background: var(--bg-secondary);
+            border-radius: var(--radius-xl);
+            padding: 30px 20px;
+            text-align: center;
+            border: 1px solid var(--border-color);
+            box-shadow: var(--shadow-lg);
+            transition: var(--transition-base);
+        }
+        
+        .team-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 32px rgba(180,83,9,0.1);
+        }
+
+        .team-avatar {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--text-accent), var(--text-accent-dark));
+            margin: 0 auto 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 32px;
+            color: white;
+        }
+
+        .team-card h4 {
+            color: var(--text-accent);
+            font-size: 20px;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+
+        .team-card p {
+            color: var(--text-secondary);
+            font-size: 14px;
+            line-height: 1.4;
+        }
+
+        .footer {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            text-align: center;
+            padding: 16px;
+            color: var(--text-secondary);
+            font-size: 14px;
+            border-top: 1px solid var(--border-color);
+            background: var(--bg-tertiary);
+            backdrop-filter: blur(8px);
+            z-index: 99;
+        }
+
+        @media (max-width: 900px) {
+            .navbar {
+                padding: 14px 20px;
+            }
+            .hamburger {
+                display: flex;
+            }
+            .nav-links {
+                position: fixed;
+                top: 72px;
+                right: -100%;
+                width: 220px;
+                height: calc(100vh - 72px);
+                background: var(--modal-bg);
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                gap: 24px;
+                transition: right 0.3s ease;
+                border-left: 1px solid var(--border-color);
+                backdrop-filter: blur(16px);
+            }
+            .nav-links.active {
+                right: 0;
+            }
+            .nav-links a {
+                margin: 0;
+                font-size: 17px;
+            }
+        }
+
+        @media (max-width: 600px) {
+            .container {
+                padding: 20px 15px;
+            }
+            .hero h1 {
+                font-size: 30px;
+            }
+            .hero p {
+                font-size: 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<nav class="navbar">
+    <a href="/" class="logo" t-zh="🏺 瓷影新生" t-en="🏺 Ceramic Revival">🏺 瓷影新生</a>
+    <div class="nav-links">
+        <a href="/" t-zh="首页" t-en="Home">首页</a>
+        <a href="/gallery" t-zh="修复案例" t-en="Gallery">修复案例</a>
+        <a href="/about" t-zh="关于我们" t-en="About">关于我们</a>
+        <a href="/help" t-zh="帮助" t-en="Help">帮助</a>
+        <a href="javascript:switchLanguage()" id="langBtn">中文</a>
+        <a href="javascript:void(0)" id="loginBtn">登录</a>
+    </div>
+</nav>
+
+<div class="container">
+    <div class="hero">
+        <h1 t-zh="关于瓷影新生" t-en="About Ceramic Revival">关于瓷影新生</h1>
+        <p t-zh="基于人工智能技术的古陶瓷智能修复平台，致力于保护和创新中华文化遗产"
+           t-en="An AI-powered platform for ancient ceramic restoration, dedicated to preserving and innovating Chinese cultural heritage.">
+            基于人工智能技术的古陶瓷智能修复平台，致力于保护和创新中华文化遗产
+        </p>
+    </div>
+
+    <div class="section">
+        <h2 class="section-title" t-zh="核心理念" t-en="Core Concepts">核心理念</h2>
+        <div class="concept-grid">
+            <div class="concept-card">
+                <div class="concept-icon">💡</div>
+                <h3 t-zh="数字赋能 · 文物新生" t-en="Digital Empowerment">数字赋能 · 文物新生</h3>
+                <p t-zh="以轻量化数字技术，守护千年陶瓷文脉，实现文化永续传承。" 
+                   t-en="Using lightweight digital technology to protect the millennia-old ceramic heritage and ensure its sustainable transmission.">
+                    以轻量化数字技术，守护千年陶瓷文脉，实现文化永续传承。
+                </p>
+            </div>
+            <div class="concept-card">
+                <div class="concept-icon">🚀</div>
+                <h3 t-zh="轻量便捷 · 普惠文保" t-en="Lightweight & Accessible">轻量便捷 · 普惠文保</h3>
+                <p t-zh="降低数字化门槛，打造大众可用、专业适配的文保服务平台。" 
+                   t-en="Lowering the barrier to digitization to create a conservation service platform accessible to all.">
+                    降低数字化门槛，打造大众可用、专业适配的文保服务平台。
+                </p>
+            </div>
+            <div class="concept-card">
+                <div class="concept-icon">🌐</div>
+                <h3 t-zh="可视传播 · 文化普及" t-en="Visual Communication">可视传播 · 文化普及</h3>
+                <p t-zh="依托三维交互展示，打破时空限制，普及古陶瓷文化。" 
+                   t-en="Relying on 3D interactive displays to break spatiotemporal limits and popularize ancient ceramic culture.">
+                    依托三维交互展示，打破时空限制，普及古陶瓷文化。
+                </p>
+            </div>
+            <div class="concept-card">
+                <div class="concept-icon">🛡️</div>
+                <h3 t-zh="尊重历史 · 科学复原" t-en="Respect & Science">尊重历史 · 科学复原</h3>
+                <p t-zh="遵循文保准则，尊重文物原貌，科学实现数字化再生。" 
+                   t-en="Following conservation standards to respect the original appearance and achieve scientific digital restoration.">
+                    遵循文保准则，尊重文物原貌，科学实现数字化再生。
+                </p>
+            </div>
+            <div class="concept-card">
+                <div class="concept-icon">🧩</div>
+                <h3 t-zh="简洁易用 · 多场景适配" t-en="Versatile Application">简洁易用 · 多场景适配</h3>
+                <p t-zh="兼顾美学与实用性，适配科普、展示、参考多场景。" 
+                   t-en="Balancing aesthetics and practicality for scenarios like education, exhibition, and research.">
+                    兼顾美学与实用性，适配科普、展示、参考多场景。
+                </p>
+            </div>
+            <div class="concept-card">
+                <div class="concept-icon">🔧</div>
+                <h3 t-zh="通用架构 · 多品类适配" t-en="Universal Architecture">通用架构 · 多品类适配</h3>
+                <p t-zh="以长沙窑为范例，可拓展适配多类古陶瓷数字化场景。" 
+                   t-en="Using Changsha Kiln as a model, extensible to various types of ancient ceramics.">
+                    以长沙窑为范例，可拓展适配多类古陶瓷数字化场景。
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2 class="section-title" t-zh="团队成员" t-en="Team Members">团队成员</h2>
+        <div class="team-grid">
+            <div class="team-card">
+                <div class="team-avatar">👑</div>
+                <h4>符译丹</h4>
+                <p t-zh="项目总负责人" t-en="Project Lead">项目总负责人</p>
+            </div>
+            <div class="team-card">
+                <div class="team-avatar">💻</div>
+                <h4>刘雅文</h4>
+                <p t-zh="前端开发 / 页面优化" t-en="Frontend Dev / Optimization">前端开发 / 页面优化</p>
+            </div>
+            <div class="team-card">
+                <div class="team-avatar">🏗️</div>
+                <h4>郑启宁</h4>
+                <p t-zh="平台架构 / 技术搭建" t-en="Architecture / Tech Setup">平台架构 / 技术搭建</p>
+            </div>
+            <div class="team-card">
+                <div class="team-avatar">📂</div>
+                <h4>李聪</h4>
+                <p t-zh="项目材料 / 运营规划" t-en="Materials / Operations">项目材料 / 运营规划</p>
+            </div>
+            <div class="team-card">
+                <div class="team-avatar">🎨</div>
+                <h4>孙嘉璘</h4>
+                <p t-zh="视觉设计 / 美学统筹" t-en="Visual Design / Aesthetics">视觉设计 / 美学统筹</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="footer">
+    <p t-zh="瓷影新生 © 2026 | 古陶瓷数字化智能修复服务平台"
+       t-en="Ceramic Revival © 2026 | Digital Intelligent Restoration Service Platform for Ancient Ceramics">
+        瓷影新生 © 2026 | 古陶瓷数字化智能修复服务平台
+    </p>
+</div>
+
+<!-- 登录模态框 -->
+<div id="loginModal" style="display: none; position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center;">
+    <div style="background: white; padding: 30px; border-radius: 24px; width: 320px; box-shadow: 0 20px 35px rgba(0,0,0,0.2); text-align: center;">
+        <h3 style="margin-bottom: 20px; color: #b45309;">用户登录</h3>
+        <input type="text" id="loginUsername" placeholder="用户名" style="width: 100%; padding: 10px; margin-bottom: 12px; border: 1px solid #ccc; border-radius: 40px;">
+        <input type="password" id="loginPassword" placeholder="密码" style="width: 100%; padding: 10px; margin-bottom: 20px; border: 1px solid #ccc; border-radius: 40px;">
+        <button id="loginSubmitBtn" style="background: #b45309; color: white; border: none; padding: 10px 20px; border-radius: 40px; width: 100%; cursor: pointer;">登录</button>
+        <button id="closeModalBtn" style="margin-top: 15px; background: none; border: none; color: #666; cursor: pointer;">关闭</button>
+    </div>
+</div>
+
+<script>
+    // 语言切换
+    let currentLang = localStorage.getItem('lang') || 'zh';
+    function switchLanguage() {
+        currentLang = currentLang === 'zh' ? 'en' : 'zh';
+        localStorage.setItem('lang', currentLang);
+        applyLang();
+        updateLangBtn();
+    }
+    function updateLangBtn() {
+        const btn = document.getElementById('langBtn');
+        if (btn) btn.innerText = currentLang === 'zh' ? '中文' : 'English';
+    }
+    function applyLang() {
+        document.querySelectorAll('[t-zh][t-en]').forEach(el => {
+            el.innerText = currentLang === 'zh' ? el.getAttribute('t-zh') : el.getAttribute('t-en');
+        });
+    }
+
+    // 登录弹窗
+    const modal = document.getElementById('loginModal');
+    const loginBtn = document.getElementById('loginBtn');
+    const closeModalBtn = document.getElementById('closeModalBtn');
+    const loginSubmitBtn = document.getElementById('loginSubmitBtn');
+
+    if (loginBtn) {
+        loginBtn.onclick = (e) => {
+            e.preventDefault();
+            if (modal) modal.style.display = 'flex';
+        };
+    }
+    if (closeModalBtn) {
+        closeModalBtn.onclick = () => {
+            if (modal) modal.style.display = 'none';
+        };
+    }
+    if (loginSubmitBtn) {
+        loginSubmitBtn.onclick = () => {
+            const username = document.getElementById('loginUsername').value;
+            const password = document.getElementById('loginPassword').value;
+            const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]).{8,}$/;
+            
+            if (!username || !password) {
+                alert('请输入用户名和密码');
+                return;
+            }
+            if (!passwordRegex.test(password)) {
+                alert('密码不符合规则！\n密码需满足：\n1. 至少8位\n2. 包含字母、数字和特殊字符');
+                return;
+            }
+            alert(`欢迎 ${username}，登录成功`);
+            modal.style.display = 'none';
+        };
+    }
+    if (modal) {
+        modal.onclick = (e) => {
+            if (e.target === modal) modal.style.display = 'none';
+        };
+    }
+
+    window.onload = function() {
+        applyLang();
+        updateLangBtn();
+    };
+</script>
+
+</body>
+</html>

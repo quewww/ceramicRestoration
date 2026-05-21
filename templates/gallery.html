@@ -1,0 +1,1606 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title t-zh="算法验证案例 - 瓷影新生" t-en="Algorithm Validation Cases - Ceramic Revival">算法验证案例 - 瓷影新生</title>
+    
+    <style>
+        :root {
+            --bg-primary: linear-gradient(145deg, #f8fafc 0%, #eef2ff 100%);
+            --bg-secondary: rgba(255,255,255,0.9);
+            --bg-tertiary: rgba(0,0,0,0.04);
+            --bg-hover: rgba(251,191,36,0.12);
+            --text-primary: #1e293b;
+            --text-secondary: #475569;
+            --text-accent: #b45309;
+            --text-accent-dark: #92400e;
+            --border-color: rgba(180, 83, 9, 0.2);
+            --success-color: #10b981;
+            --error-color: #ef4444;
+            --canvas-bg: #ffffff;
+            --modal-bg: rgba(255, 255, 255, 0.96);
+            --shadow-lg: 0 8px 32px rgba(0,0,0,0.08);
+            --shadow-md: 0 4px 16px rgba(0,0,0,0.05);
+            --radius-xl: 24px;
+            --radius-lg: 18px;
+            --radius-md: 12px;
+            --transition-base: all 0.3s ease;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Microsoft YaHei', 'Segoe UI', system-ui, sans-serif;
+            background: var(--bg-primary);
+            background-attachment: fixed;
+            min-height: 100vh;
+            color: var(--text-primary);
+            transition: var(--transition-base);
+            animation: fadeInBody 0.6s ease;
+            padding-bottom: 80px;
+        }
+
+        @keyframes fadeInBody {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .navbar {
+            background: var(--bg-tertiary);
+            padding: 16px 32px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--border-color);
+            transition: var(--transition-base);
+            box-shadow: var(--shadow-md);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .logo {
+            font-size: 22px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            background: linear-gradient(135deg, var(--text-accent), var(--text-accent-dark));
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            text-decoration: none;
+        }
+
+        .nav-links {
+            display: flex;
+            align-items: center;
+            gap: 24px;
+        }
+
+        .nav-links a {
+            color: var(--text-primary);
+            text-decoration: none;
+            font-size: 15px;
+            padding: 6px 12px;
+            border-radius: var(--radius-md);
+            transition: var(--transition-base);
+        }
+
+        .nav-links a:hover {
+            color: var(--text-accent);
+            background: var(--bg-hover);
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 40px 30px;
+        }
+
+        .hero {
+            text-align: center;
+            margin-bottom: 50px;
+            animation: slideUp 0.6s ease;
+        }
+
+        @keyframes slideUp {
+            from { transform: translateY(20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        .hero h1 {
+            font-size: 44px;
+            margin-bottom: 16px;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--text-primary) 30%, var(--text-accent) 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
+
+        .hero p {
+            color: var(--text-secondary);
+            font-size: 18px;
+            letter-spacing: 0.5px;
+            max-width: 800px;
+            margin: 0 auto;
+            line-height: 1.8;
+        }
+
+        .filters {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-bottom: 40px;
+            flex-wrap: wrap;
+        }
+
+        .filter-btn {
+            padding: 10px 25px;
+            border: 1px solid var(--border-color);
+            border-radius: 25px;
+            background: var(--bg-secondary);
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 14px;
+        }
+
+        .filter-btn:hover,
+        .filter-btn.active {
+            background: var(--text-accent);
+            color: #fff;
+            border-color: var(--text-accent);
+        }
+
+        .gallery-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 24px;
+        }
+
+        .gallery-item {
+            background: var(--bg-secondary);
+            border-radius: var(--radius-xl);
+            overflow: hidden;
+            border: 1px solid var(--border-color);
+            transition: transform 0.3s, box-shadow 0.3s;
+            cursor: pointer;
+            box-shadow: var(--shadow-lg);
+        }
+
+        .gallery-item:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 32px rgba(180,83,9,0.1);
+        }
+
+        .gallery-image {
+            width: 100%;
+            height: 250px;
+            background: var(--canvas-bg);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .gallery-image-placeholder {
+            font-size: 80px;
+            opacity: 0.5;
+            color: var(--text-accent);
+        }
+
+        .gallery-badge {
+            position: absolute;
+            top: 15px;
+            left: 15px;
+            background: var(--text-accent);
+            color: #fff;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .gallery-content {
+            padding: 25px;
+        }
+
+        .gallery-title {
+            font-size: 20px;
+            color: var(--text-accent);
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+
+        .gallery-desc {
+            color: var(--text-secondary);
+            font-size: 14px;
+            line-height: 1.8;
+            margin-bottom: 15px;
+        }
+
+        .gallery-meta {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            color: var(--text-secondary);
+            border-top: 1px solid var(--border-color);
+            padding-top: 15px;
+        }
+
+        .gallery-stats {
+            display: flex;
+            gap: 20px;
+            margin-top: 15px;
+        }
+
+        .gallery-stat {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+
+        .gallery-stat span {
+            color: var(--text-accent);
+            font-weight: 600;
+        }
+
+        .compare-view {
+            display: flex;
+            height: 100%;
+        }
+
+        .compare-half {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+
+        .compare-half.before {
+            background: rgba(255,100,100,0.05);
+            border-right: 2px solid var(--text-accent);
+        }
+
+        .compare-half.after {
+            background: rgba(100,255,100,0.05);
+        }
+
+        .compare-label {
+            position: absolute;
+            top: 10px;
+            font-size: 12px;
+            padding: 3px 10px;
+            border-radius: 10px;
+            background: rgba(0,0,0,0.5);
+            color: #fff;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.6);
+            backdrop-filter: blur(8px);
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-content {
+            background: var(--modal-bg);
+            border-radius: var(--radius-xl);
+            padding: 40px;
+            width: 90%;
+            max-width: 900px;
+            border: 1px solid var(--border-color);
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: var(--shadow-lg);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .modal-header h2 {
+            color: var(--text-accent);
+            font-size: 28px;
+            font-weight: 600;
+        }
+
+        .close {
+            color: var(--text-secondary);
+            font-size: 32px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: color 0.3s;
+        }
+
+        .close:hover {
+            color: var(--text-accent);
+        }
+
+        .modal-body {
+            color: var(--text-primary);
+            line-height: 1.8;
+        }
+
+        .modal-body h3 {
+            color: var(--text-accent);
+            margin: 20px 0 10px;
+            font-weight: 600;
+        }
+
+        .modal-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+
+        .modal-stat {
+            background: var(--bg-tertiary);
+            padding: 15px;
+            border-radius: var(--radius-md);
+            text-align: center;
+            border: 1px solid var(--border-color);
+        }
+
+        .modal-stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: var(--text-accent);
+        }
+
+        .modal-stat-label {
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-top: 5px;
+        }
+
+        .footer {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            text-align: center;
+            padding: 16px;
+            color: var(--text-secondary);
+            font-size: 14px;
+            border-top: 1px solid var(--border-color);
+            background: var(--bg-tertiary);
+            backdrop-filter: blur(8px);
+            z-index: 99;
+        }
+
+        .load-more {
+            text-align: center;
+            margin-top: 40px;
+        }
+
+        .load-more-btn {
+            padding: 15px 50px;
+            border: 1px solid var(--border-color);
+            border-radius: 30px;
+            background: var(--bg-secondary);
+            color: var(--text-accent);
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .load-more-btn:hover {
+            background: var(--text-accent);
+            color: #fff;
+        }
+
+        @media (max-width: 900px) {
+            .navbar {
+                padding: 14px 20px;
+            }
+            .nav-links {
+                position: fixed;
+                top: 72px;
+                right: -100%;
+                width: 220px;
+                height: calc(100vh - 72px);
+                background: var(--modal-bg);
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                gap: 24px;
+                transition: right 0.3s ease;
+                border-left: 1px solid var(--border-color);
+                backdrop-filter: blur(16px);
+            }
+            .nav-links.active {
+                right: 0;
+            }
+            .nav-links a {
+                margin: 0;
+                font-size: 17px;
+            }
+        }
+
+        @media (max-width: 600px) {
+            .container {
+                padding: 20px 15px;
+            }
+            .hero h1 {
+                font-size: 30px;
+            }
+            .hero p {
+                font-size: 15px;
+            }
+            .gallery-grid {
+                grid-template-columns: 1fr;
+            }
+            .modal-content {
+                padding: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<nav class="navbar">
+    <a href="/" class="logo" t-zh="🏺 瓷影新生" t-en="🏺 Ceramic Revival">🏺 瓷影新生</a>
+    <div class="nav-links">
+        <a href="/" t-zh="首页" t-en="Home">首页</a>
+        <a href="/gallery" t-zh="修复案例" t-en="Gallery">修复案例</a>
+        <a href="/about" t-zh="关于我们" t-en="About">关于我们</a>
+        <a href="/help" t-zh="帮助" t-en="Help">帮助</a>
+        <a href="javascript:switchLanguage()" id="langBtn">中文</a>
+        <a href="javascript:void(0)" id="loginBtn">登录</a>
+    </div>
+</nav>
+
+<div class="container">
+    <div class="hero">
+        <h1 t-zh="算法验证案例" t-en="Algorithm Validation Cases">算法验证案例</h1>
+        <p t-zh="基于开源数据集与仿真模型，展示AIGC在古陶瓷点云修复中的技术可行性" t-en="Demonstrating the feasibility of AIGC in ancient ceramic point cloud restoration based on open-source datasets and simulation models.">
+            基于开源数据集与仿真模型，展示AIGC在古陶瓷点云修复中的技术可行性
+        </p>
+    </div>
+
+    <div class="filters">
+        <button class="filter-btn active" data-filter="all" t-zh="全部案例" t-en="All Cases">全部案例</button>
+        <button class="filter-btn" data-filter="pottery" t-zh="陶器" t-en="Pottery">陶器</button>
+        <button class="filter-btn" data-filter="porcelain" t-zh="瓷器" t-en="Porcelain">瓷器</button>
+        <button class="filter-btn" data-filter="changsha" t-zh="长沙窑" t-en="Changsha Kiln">长沙窑</button>
+        <button class="filter-btn" data-filter="qinghua" t-zh="青花瓷" t-en="Blue and White">青花瓷</button>
+        <button class="filter-btn" data-filter="tangsancai" t-zh="唐三彩" t-en="Tang Sancai">唐三彩</button>
+    </div>
+
+    <div class="gallery-grid">
+        <!-- 陶器 Pottery -->
+        <div class="gallery-item" data-category="pottery" onclick="openModal('pottery-1')">
+            <div class="gallery-image">
+                <div class="compare-view">
+                    <div class="compare-half before">
+                        <span class="compare-label" t-zh="修复前" t-en="Before">修复前</span>
+                        <div class="gallery-image-placeholder">🏺</div>
+                    </div>
+                    <div class="compare-half after">
+                        <span class="compare-label" t-zh="修复后" t-en="After">修复后</span>
+                        <div class="gallery-image-placeholder">🏺</div>
+                    </div>
+                </div>
+                <span class="gallery-badge" t-zh="陶器" t-en="Pottery">陶器</span>
+            </div>
+            <div class="gallery-content">
+                <h3 class="gallery-title" t-zh="半坡人面鱼纹盆 (仿真)" t-en="Banpo Fish-Pattern Basin (Simulated)">半坡人面鱼纹盆 (仿真)</h3>
+                <p class="gallery-desc" t-zh="测试算法对新石器纹饰的连续性补全能力。" t-en="Testing continuity restoration of Neolithic patterns.">
+                    测试算法对新石器纹饰的连续性补全能力。
+                </p>
+                <div class="gallery-stats">
+                    <div class="gallery-stat"><span>112,000</span></div>
+                    <div class="gallery-stat"><span>97.2%</span></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="gallery-item" data-category="pottery" onclick="openModal('pottery-2')">
+            <div class="gallery-image">
+                <div class="compare-view">
+                    <div class="compare-half before">
+                        <span class="compare-label" t-zh="修复前" t-en="Before">修复前</span>
+                        <div class="gallery-image-placeholder">🏺</div>
+                    </div>
+                    <div class="compare-half after">
+                        <span class="compare-label" t-zh="修复后" t-en="After">修复后</span>
+                        <div class="gallery-image-placeholder">🏺</div>
+                    </div>
+                </div>
+                <span class="gallery-badge" t-zh="陶器" t-en="Pottery">陶器</span>
+            </div>
+            <div class="gallery-content">
+                <h3 class="gallery-title" t-zh="龙山文化黑陶罐 (仿真)" t-en="Longshan Black Pottery Jar (Simulated)">龙山文化黑陶罐 (仿真)</h3>
+                <p class="gallery-desc" t-zh="测试薄胎黑陶表面纹理修复。" t-en="Testing thin-wall black pottery texture repair.">
+                    测试薄胎黑陶表面纹理修复。
+                </p>
+                <div class="gallery-stats">
+                    <div class="gallery-stat"><span>98,500</span></div>
+                    <div class="gallery-stat"><span>96.8%</span></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="gallery-item" data-category="pottery" onclick="openModal('pottery-3')">
+            <div class="gallery-image">
+                <div class="compare-view">
+                    <div class="compare-half before">
+                        <span class="compare-label" t-zh="修复前" t-en="Before">修复前</span>
+                        <div class="gallery-image-placeholder">🏺</div>
+                    </div>
+                    <div class="compare-half after">
+                        <span class="compare-label" t-zh="修复后" t-en="After">修复后</span>
+                        <div class="gallery-image-placeholder">🏺</div>
+                    </div>
+                </div>
+                <span class="gallery-badge" t-zh="陶器" t-en="Pottery">陶器</span>
+            </div>
+            <div class="gallery-content">
+                <h3 class="gallery-title" t-zh="河姆渡猪纹陶钵 (仿真)" t-en="Hemudu Pig-Pattern Pottery Bowl (Simulated)">河姆渡猪纹陶钵 (仿真)</h3>
+                <p class="gallery-desc" t-zh="测试动物纹饰的细节还原。" t-en="Testing fine detail restoration of animal patterns.">
+                    测试动物纹饰的细节还原。
+                </p>
+                <div class="gallery-stats">
+                    <div class="gallery-stat"><span>87,300</span></div>
+                    <div class="gallery-stat"><span>97.5%</span></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="gallery-item" data-category="pottery" onclick="openModal('pottery-4')">
+            <div class="gallery-image">
+                <div class="compare-view">
+                    <div class="compare-half before">
+                        <span class="compare-label" t-zh="修复前" t-en="Before">修复前</span>
+                        <div class="gallery-image-placeholder">🏺</div>
+                    </div>
+                    <div class="compare-half after">
+                        <span class="compare-label" t-zh="修复后" t-en="After">修复后</span>
+                        <div class="gallery-image-placeholder">🏺</div>
+                    </div>
+                </div>
+                <span class="gallery-badge" t-zh="陶器" t-en="Pottery">陶器</span>
+            </div>
+            <div class="gallery-content">
+                <h3 class="gallery-title" t-zh="大汶口彩陶豆 (仿真)" t-en="Dawenkou Painted Pottery Dou (Simulated)">大汶口彩陶豆 (仿真)</h3>
+                <p class="gallery-desc" t-zh="测试彩绘图案与器型的匹配。" t-en="Testing painted pattern and shape matching.">
+                    测试彩绘图案与器型的匹配。
+                </p>
+                <div class="gallery-stats">
+                    <div class="gallery-stat"><span>103,000</span></div>
+                    <div class="gallery-stat"><span>98.0%</span></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="gallery-item" data-category="pottery" onclick="openModal('pottery-5')">
+            <div class="gallery-image">
+                <div class="compare-view">
+                    <div class="compare-half before">
+                        <span class="compare-label" t-zh="修复前" t-en="Before">修复前</span>
+                        <div class="gallery-image-placeholder">🏺</div>
+                    </div>
+                    <div class="compare-half after">
+                        <span class="compare-label" t-zh="修复后" t-en="After">修复后</span>
+                        <div class="gallery-image-placeholder">🏺</div>
+                    </div>
+                </div>
+                <span class="gallery-badge" t-zh="陶器" t-en="Pottery">陶器</span>
+            </div>
+            <div class="gallery-content">
+                <h3 class="gallery-title" t-zh="良渚玉琮 (仿真)" t-en="Liangzhu Jade Cong (Simulated)">良渚玉琮 (仿真)</h3>
+                <p class="gallery-desc" t-zh="测试玉器表面神徽纹饰修复。" t-en="Testing restoration of deity patterns on jade.">
+                    测试玉器表面神徽纹饰修复。
+                </p>
+                <div class="gallery-stats">
+                    <div class="gallery-stat"><span>156,000</span></div>
+                    <div class="gallery-stat"><span>99.2%</span></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 瓷器 Porcelain -->
+        <div class="gallery-item" data-category="porcelain" onclick="openModal('porcelain-1')">
+            <div class="gallery-image">
+                <div class="compare-view">
+                    <div class="compare-half before">
+                        <span class="compare-label" t-zh="修复前" t-en="Before">修复前</span>
+                        <div class="gallery-image-placeholder">🏺</div>
+                    </div>
+                    <div class="compare-half after">
+                        <span class="compare-label" t-zh="修复后" t-en="After">修复后</span>
+                        <div class="gallery-image-placeholder">🏺</div>
+                    </div>
+                </div>
+                <span class="gallery-badge" t-zh="瓷器" t-en="Porcelain">瓷器</span>
+            </div>
+            <div class="gallery-content">
+                <h3 class="gallery-title" t-zh="宋代汝窑天青釉盘 (仿真)" t-en="Song Ru Celadon Plate (Simulated)">宋代汝窑天青釉盘 (仿真)</h3>
+                <p class="gallery-desc" t-zh="测试开片纹理与边缘磕碰的联合修复。" t-en="Testing joint restoration of crackle and edge damage.">
+                    测试开片纹理与边缘磕碰的联合修复。
+                </p>
+                <div class="gallery-stats">
+                    <div class="gallery-stat"><span>98,000</span></div>
+                    <div class="gallery-stat"><span>98.1%</span></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="gallery-item" data-category="porcelain" onclick="openModal('porcelain-2')">
+            <div class="gallery-image">
+                <div class="compare-view">
+                    <div class="compare-half before">
+                        <span class="compare-label" t-zh="修复前" t-en="Before">修复前</span>
+                        <div class="gallery-image-placeholder">🏺</div>
+                    </div>
+                    <div class="compare-half after">
+                        <span class="compare-label" t-zh="修复后" t-en="After">修复后</span>
+                        <div class="gallery-image-placeholder">🏺</div>
+                    </div>
+                </div>
+                <span class="gallery-badge" t-zh="瓷器" t-en="Porcelain">瓷器</span>
+            </div>
+            <div class="gallery-content">
+                <h3 class="gallery-title" t-zh="明代永乐甜白釉碗 (仿真)" t-en="Ming Yongle Sweet White Bowl (Simulated)">明代永乐甜白釉碗 (仿真)</h3>
+                <p class="gallery-desc" t-zh="测试薄胎白瓷的透光结构修复。" t-en="Testing translucency structure of thin-wall white porcelain.">
+                    测试薄胎白瓷的透光结构修复。
+                </p>
+                <div class="gallery-stats">
+                    <div class="gallery-stat"><span>105,000</span></div>
+                    <div class="gallery-stat"><span>98.7%</span></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="gallery-item" data-category="porcelain" onclick="openModal('porcelain-3')">
+            <div class="gallery-image">
+                <div class="compare-view">
+                    <div class="compare-half before">
+                        <span class="compare-label" t-zh="修复前" t-en="Before">修复前</span>
+                        <div class="gallery-image-placeholder">🏺</div>
+                    </div>
+                    <div class="compare-half after">
+                        <span class="compare-label" t-zh="修复后" t-en="After">修复后</span>
+                        <div class="gallery-image-placeholder">🏺</div>
+                    </div>
+                </div>
+                <span class="gallery-badge" t-zh="瓷器" t-en="Porcelain">瓷器</span>
+            </div>
+            <div class="gallery-content">
+                <h3 class="gallery-title" t-zh="清代雍正粉彩瓶 (仿真)" t-en="Qing Yongzheng Famille Rose Vase (Simulated)">清代雍正粉彩瓶 (仿真)</h3>
+                <p class="gallery-desc" t-zh="测试彩绘图案与器型匹配。" t-en="Testing painted pattern and shape matching.">
+                    测试彩绘图案与器型匹配。
+                </p>
+                <div class="gallery-stats">
+                    <div class="gallery-stat"><span>128,000</span></div>
+                    <div class="gallery-stat"><span>99.2%</span></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="gallery-item" data-category="porcelain" onclick="openModal('porcelain-4')">
+            <div class="gallery-image">
+                <div class="compare-view">
+                    <div class="compare-half before">
+                        <span class="compare-label" t-zh="修复前" t-en="Before">修复前</span>
+                        <div class="gallery-image-placeholder">🏺</div>
+                    </div>
+                    <div class="compare-half after">
+                        <span class="compare-label" t-zh="修复后" t-en="After">修复后</span>
+                        <div class="gallery-image-placeholder">🏺</div>
+                    </div>
+                </div>
+                <span class="gallery-badge" t-zh="瓷器" t-en="Porcelain">瓷器</span>
+            </div>
+            <div class="gallery-content">
+                <h3 class="gallery-title" t-zh="唐代越窑秘色瓷 (仿真)" t-en="Tang Yue Kiln Secret Color Ware (Simulated)">唐代越窑秘色瓷 (仿真)</h3>
+                <p class="gallery-desc" t-zh="测试半透明釉面的修复。" t-en="Testing semi-transparent glaze restoration.">
+                    测试半透明釉面的修复。
+                </p>
+                <div class="gallery-stats">
+                    <div class="gallery-stat"><span>89,700</span></div>
+                    <div class="gallery-stat"><span>97.4%</span></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="gallery-item" data-category="porcelain" onclick="openModal('porcelain-5')">
+            <div class="gallery-image">
+                <div class="compare-view">
+                    <div class="compare-half before">
+                        <span class="compare-label" t-zh="修复前" t-en="Before">修复前</span>
+                        <div class="gallery-image-placeholder">🏺</div>
+                    </div>
+                    <div class="compare-half after">
+                        <span class="compare-label" t-zh="修复后" t-en="After">修复后</span>
+                        <div class="gallery-image-placeholder">🏺</div>
+                    </div>
+                </div>
+                <span class="gallery-badge" t-zh="瓷器" t-en="Porcelain">瓷器</span>
+            </div>
+            <div class="gallery-content">
+                <h3 class="gallery-title" t-zh="宋代定窑白瓷孩儿枕 (仿真)" t-en="Song Ding Kiln White Porcelain Pillow (Simulated)">宋代定窑白瓷孩儿枕 (仿真)</h3>
+                <p class="gallery-desc" t-zh="测试人物造型+细节纹理。" t-en="Testing human form + detail texture.">
+                    测试人物造型+细节纹理。
+                </p>
+                <div class="gallery-stats">
+                    <div class="gallery-stat"><span>112,500</span></div>
+                    <div class="gallery-stat"><span>98.3%</span></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 长沙窑 Changsha -->
+        <div class="gallery-item" data-category="changsha" onclick="openModal('changsha-1')">
+            <div class="gallery-image">
+                <div class="compare-view">
+                    <div class="compare-half before">
+                        <span class="compare-label" t-zh="修复前" t-en="Before">修复前</span>
+                        <div class="gallery-image-placeholder">🏺</div>
+                    </div>
+                    <div class="compare-half after">
+                        <span class="compare-label" t-zh="修复后" t-en="After">修复后</span>
+                        <div class="gallery-image-placeholder">🏺</div>
+                    </div>
+                </div>
+                <span class="gallery-badge" t-zh="长沙窑" t-en="Changsha Kiln">长沙窑</span>
+            </div>
+            <div class="gallery-content">
+                <h3 class="gallery-title" t-zh="长沙窑诗文执壶 (仿真)" t-en="Changsha Poem Ewer (Simulated)">长沙窑诗文执壶 (仿真)</h3>
+                <p class="gallery-desc" t-zh="测试文字与器型的空间协调修复。" t-en="Testing spatial harmony of text and shape.">
+                    测试文字与器型的空间协调修复。
+                </p>
+                <div class="gallery-stats">
+                    <div class="gallery-stat"><span>125,000</span></div>
+                    <div class="gallery-stat"><span>98.5%</span></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="gallery-item" data-category="changsha" onclick="openModal('changsha-2')">
+            <div class="gallery-image">
+                <div class="compare-view">
+                    <div class="compare-half before">
+                        <span class="compare-label" t-zh="修复前" t-en="Before">修复前</span>
+                        <div class="gallery-image-placeholder">🏺</div>
+                    </div>
+                    <div class="compare-half after">
+                        <span class="compare-label" t-zh="修复后" t-en="After">修复后</span>
+                        <div class="gallery-image-placeholder">🏺</div>
+                    </div>
+                </div>
+                <span class="gallery-badge" t-zh="长沙窑" t-en="Changsha Kiln">长沙窑</span>
+            </div>
+            <div class="gallery-content">
+                <h3 class="gallery-title" t-zh="长沙窑莲花纹碗 (仿真)" t-en="Changsha Lotus Bowl (Simulated)">长沙窑莲花纹碗 (仿真)</h3>
+                <p class="gallery-desc" t-zh="测试莲花纹饰连续性。" t-en="Testing lotus pattern continuity.">
+                    测试莲花纹饰连续性。
+                </p>
+                <div class="gallery-stats">
+                    <div class="gallery-stat"><span>102,000</span></div>
+                    <div class="gallery-stat"><span>97.8%</span></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="gallery-item" data-category="changsha" onclick="openModal('changsha-3')">
+            <div class="gallery-image">
+                <div class="compare-view">
+                    <div class="compare-half before">
+                        <span class="compare-label" t-zh="修复前" t-en="Before">修复前</span>
+                        <div class="gallery-image-placeholder">🏺</div>
+                    </div>
+                    <div class="compare-half after">
+                        <span class="compare-label" t-zh="修复后" t-en="After">修复后</span>
+                        <div class="gallery-image-placeholder">🏺</div>
+                    </div>
+                </div>
+                <span class="gallery-badge" t-zh="长沙窑" t-en="Changsha Kiln">长沙窑</span>
+            </div>
+            <div class="gallery-content">
+                <h3 class="gallery-title" t-zh="长沙窑胡人纹执壶 (仿真)" t-en="Changsha Foreigner Ewer (Simulated)">长沙窑胡人纹执壶 (仿真)</h3>
+                <p class="gallery-desc" t-zh="测试异域人物纹饰修复。" t-en="Testing foreign figure pattern restoration.">
+                    测试异域人物纹饰修复。
+                </p>
+                <div class="gallery-stats">
+                    <div class="gallery-stat"><span>118,000</span></div>
+                    <div class="gallery-stat"><span>98.9%</span></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="gallery-item" data-category="changsha" onclick="openModal('changsha-4')">
+            <div class="gallery-image">
+                <div class="compare-view">
+                    <div class="compare-half before">
+                        <span class="compare-label" t-zh="修复前" t-en="Before">修复前</span>
+                        <div class="gallery-image-placeholder">🏺</div>
+                    </div>
+                    <div class="compare-half after">
+                        <span class="compare-label" t-zh="修复后" t-en="After">修复后</span>
+                        <div class="gallery-image-placeholder">🏺</div>
+                    </div>
+                </div>
+                <span class="gallery-badge" t-zh="长沙窑" t-en="Changsha Kiln">长沙窑</span>
+            </div>
+            <div class="gallery-content">
+                <h3 class="gallery-title" t-zh="长沙窑花鸟纹罐 (仿真)" t-en="Changsha Flower-Bird Jar (Simulated)">长沙窑花鸟纹罐 (仿真)</h3>
+                <p class="gallery-desc" t-zh="测试花鸟组合纹饰修复。" t-en="Testing flower-bird composite pattern.">
+                    测试花鸟组合纹饰修复。
+                </p>
+                <div class="gallery-stats">
+                    <div class="gallery-stat"><span>95,300</span></div>
+                    <div class="gallery-stat"><span>97.1%</span></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="gallery-item" data-category="changsha" onclick="openModal('changsha-5')">
+            <div class="gallery-image">
+                <div class="compare-view">
+                    <div class="compare-half before">
+                        <span class="compare-label" t-zh="修复前" t-en="Before">修复前</span>
+                        <div class="gallery-image-placeholder">🏺</div>
+                    </div>
+                    <div class="compare-half after">
+                        <span class="compare-label" t-zh="修复后" t-en="After">修复后</span>
+                        <div class="gallery-image-placeholder">🏺</div>
+                    </div>
+                </div>
+                <span class="gallery-badge" t-zh="长沙窑" t-en="Changsha Kiln">长沙窑</span>
+            </div>
+            <div class="gallery-content">
+                <h3 class="gallery-title" t-zh="长沙窑阿拉伯文盘 (仿真)" t-en="Changsha Arabic Text Plate (Simulated)">长沙窑阿拉伯文盘 (仿真)</h3>
+                <p class="gallery-desc" t-zh="测试非汉字文本修复。" t-en="Testing non-Chinese text restoration.">
+                    测试非汉字文本修复。
+                </p>
+                <div class="gallery-stats">
+                    <div class="gallery-stat"><span>107,000</span></div>
+                    <div class="gallery-stat"><span>98.0%</span></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 青花瓷 Blue and White -->
+        <div class="gallery-item" data-category="qinghua" onclick="openModal('qinghua-1')">
+            <div class="gallery-image">
+                <div class="compare-view">
+                    <div class="compare-half before">
+                        <span class="compare-label" t-zh="修复前" t-en="Before">修复前</span>
+                        <div class="gallery-image-placeholder">🥣</div>
+                    </div>
+                    <div class="compare-half after">
+                        <span class="compare-label" t-zh="修复后" t-en="After">修复后</span>
+                        <div class="gallery-image-placeholder">🥣</div>
+                    </div>
+                </div>
+                <span class="gallery-badge" t-zh="青花瓷" t-en="Blue and White">青花瓷</span>
+            </div>
+            <div class="gallery-content">
+                <h3 class="gallery-title" t-zh="元青花缠枝莲纹罐 (仿真)" t-en="Yuan Blue-and-White Jar (Simulated)">元青花缠枝莲纹罐 (仿真)</h3>
+                <p class="gallery-desc" t-zh="测试大面积纹饰连续性补全。" t-en="Testing large-area pattern continuity.">
+                    测试大面积纹饰连续性补全。
+                </p>
+                <div class="gallery-stats">
+                    <div class="gallery-stat"><span>134,000</span></div>
+                    <div class="gallery-stat"><span>97.9%</span></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="gallery-item" data-category="qinghua" onclick="openModal('qinghua-2')">
+            <div class="gallery-image">
+                <div class="compare-view">
+                    <div class="compare-half before">
+                        <span class="compare-label" t-zh="修复前" t-en="Before">修复前</span>
+                        <div class="gallery-image-placeholder">🥣</div>
+                    </div>
+                    <div class="compare-half after">
+                        <span class="compare-label" t-zh="修复后" t-en="After">修复后</span>
+                        <div class="gallery-image-placeholder">🥣</div>
+                    </div>
+                </div>
+                <span class="gallery-badge" t-zh="青花瓷" t-en="Blue and White">青花瓷</span>
+            </div>
+            <div class="gallery-content">
+                <h3 class="gallery-title" t-zh="明宣德青花龙纹扁瓶 (仿真)" t-en="Ming Xuande Blue-and-White Dragon Flask (Simulated)">明宣德青花龙纹扁瓶 (仿真)</h3>
+                <p class="gallery-desc" t-zh="测试龙纹动态与器型匹配。" t-en="Testing dragon motion and shape matching.">
+                    测试龙纹动态与器型匹配。
+                </p>
+                <div class="gallery-stats">
+                    <div class="gallery-stat"><span>121,000</span></div>
+                    <div class="gallery-stat"><span>98.6%</span></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="gallery-item" data-category="qinghua" onclick="openModal('qinghua-3')">
+            <div class="gallery-image">
+                <div class="compare-view">
+                    <div class="compare-half before">
+                        <span class="compare-label" t-zh="修复前" t-en="Before">修复前</span>
+                        <div class="gallery-image-placeholder">🥣</div>
+                    </div>
+                    <div class="compare-half after">
+                        <span class="compare-label" t-zh="修复后" t-en="After">修复后</span>
+                        <div class="gallery-image-placeholder">🥣</div>
+                    </div>
+                </div>
+                <span class="gallery-badge" t-zh="青花瓷" t-en="Blue and White">青花瓷</span>
+            </div>
+            <div class="gallery-content">
+                <h3 class="gallery-title" t-zh="清康熙青花山水人物瓶 (仿真)" t-en="Qing Kangxi Blue-and-White Landscape Vase (Simulated)">清康熙青花山水人物瓶 (仿真)</h3>
+                <p class="gallery-desc" t-zh="测试山水人物复杂场景修复。" t-en="Testing complex landscape figure scene.">
+                    测试山水人物复杂场景修复。
+                </p>
+                <div class="gallery-stats">
+                    <div class="gallery-stat"><span>139,000</span></div>
+                    <div class="gallery-stat"><span>99.1%</span></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="gallery-item" data-category="qinghua" onclick="openModal('qinghua-4')">
+            <div class="gallery-image">
+                <div class="compare-view">
+                    <div class="compare-half before">
+                        <span class="compare-label" t-zh="修复前" t-en="Before">修复前</span>
+                        <div class="gallery-image-placeholder">🥣</div>
+                    </div>
+                    <div class="compare-half after">
+                        <span class="compare-label" t-zh="修复后" t-en="After">修复后</span>
+                        <div class="gallery-image-placeholder">🥣</div>
+                    </div>
+                </div>
+                <span class="gallery-badge" t-zh="青花瓷" t-en="Blue and White">青花瓷</span>
+            </div>
+            <div class="gallery-content">
+                <h3 class="gallery-title" t-zh="明成化青花婴戏图碗 (仿真)" t-en="Ming Chenghua Blue-and-White Child Bowl (Simulated)">明成化青花婴戏图碗 (仿真)</h3>
+                <p class="gallery-desc" t-zh="测试儿童形象与动态修复。" t-en="Testing child figure and motion restoration.">
+                    测试儿童形象与动态修复。
+                </p>
+                <div class="gallery-stats">
+                    <div class="gallery-stat"><span>108,000</span></div>
+                    <div class="gallery-stat"><span>97.6%</span></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="gallery-item" data-category="qinghua" onclick="openModal('qinghua-5')">
+            <div class="gallery-image">
+                <div class="compare-view">
+                    <div class="compare-half before">
+                        <span class="compare-label" t-zh="修复前" t-en="Before">修复前</span>
+                        <div class="gallery-image-placeholder">🥣</div>
+                    </div>
+                    <div class="compare-half after">
+                        <span class="compare-label" t-zh="修复后" t-en="After">修复后</span>
+                        <div class="gallery-image-placeholder">🥣</div>
+                    </div>
+                </div>
+                <span class="gallery-badge" t-zh="青花瓷" t-en="Blue and White">青花瓷</span>
+            </div>
+            <div class="gallery-content">
+                <h3 class="gallery-title" t-zh="清乾隆青花缠枝花卉纹盘 (仿真)" t-en="Qing Qianlong Blue-and-White Floral Plate (Simulated)">清乾隆青花缠枝花卉纹盘 (仿真)</h3>
+                <p class="gallery-desc" t-zh="测试密集花卉纹饰修复。" t-en="Testing dense floral pattern restoration.">
+                    测试密集花卉纹饰修复。
+                </p>
+                <div class="gallery-stats">
+                    <div class="gallery-stat"><span>126,000</span></div>
+                    <div class="gallery-stat"><span>98.4%</span></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 唐三彩 Tang Sancai -->
+        <div class="gallery-item" data-category="tangsancai" onclick="openModal('tangsancai-1')">
+            <div class="gallery-image">
+                <div class="compare-view">
+                    <div class="compare-half before">
+                        <span class="compare-label" t-zh="修复前" t-en="Before">修复前</span>
+                        <div class="gallery-image-placeholder">🐪</div>
+                    </div>
+                    <div class="compare-half after">
+                        <span class="compare-label" t-zh="修复后" t-en="After">修复后</span>
+                        <div class="gallery-image-placeholder">🐪</div>
+                    </div>
+                </div>
+                <span class="gallery-badge" t-zh="唐三彩" t-en="Tang Sancai">唐三彩</span>
+            </div>
+            <div class="gallery-content">
+                <h3 class="gallery-title" t-zh="唐三彩骆驼载乐俑 (仿真)" t-en="Tang Camel Figurine (Simulated)">唐三彩骆驼载乐俑 (仿真)</h3>
+                <p class="gallery-desc" t-zh="测试非刚性形态与多对象结构修复。" t-en="Testing non-rigid and multi-object restoration.">
+                    测试非刚性形态与多对象结构修复。
+                </p>
+                <div class="gallery-stats">
+                    <div class="gallery-stat"><span>156,000</span></div>
+                    <div class="gallery-stat"><span>99.1%</span></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="gallery-item" data-category="tangsancai" onclick="openModal('tangsancai-2')">
+            <div class="gallery-image">
+                <div class="compare-view">
+                    <div class="compare-half before">
+                        <span class="compare-label" t-zh="修复前" t-en="Before">修复前</span>
+                        <div class="gallery-image-placeholder">🐪</div>
+                    </div>
+                    <div class="compare-half after">
+                        <span class="compare-label" t-zh="修复后" t-en="After">修复后</span>
+                        <div class="gallery-image-placeholder">🐪</div>
+                    </div>
+                </div>
+                <span class="gallery-badge" t-zh="唐三彩" t-en="Tang Sancai">唐三彩</span>
+            </div>
+            <div class="gallery-content">
+                <h3 class="gallery-title" t-zh="唐三彩马球女俑 (仿真)" t-en="Tang Polo Female Figurine (Simulated)">唐三彩马球女俑 (仿真)</h3>
+                <p class="gallery-desc" t-zh="测试女性服饰与动态姿态。" t-en="Testing female dress and dynamic pose.">
+                    测试女性服饰与动态姿态。
+                </p>
+                <div class="gallery-stats">
+                    <div class="gallery-stat"><span>142,000</span></div>
+                    <div class="gallery-stat"><span>98.8%</span></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="gallery-item" data-category="tangsancai" onclick="openModal('tangsancai-3')">
+            <div class="gallery-image">
+                <div class="compare-view">
+                    <div class="compare-half before">
+                        <span class="compare-label" t-zh="修复前" t-en="Before">修复前</span>
+                        <div class="gallery-image-placeholder">🐪</div>
+                    </div>
+                    <div class="compare-half after">
+                        <span class="compare-label" t-zh="修复后" t-en="After">修复后</span>
+                        <div class="gallery-image-placeholder">🐪</div>
+                    </div>
+                </div>
+                <span class="gallery-badge" t-zh="唐三彩" t-en="Tang Sancai">唐三彩</span>
+            </div>
+            <div class="gallery-content">
+                <h3 class="gallery-title" t-zh="唐三彩胡人牵驼俑 (仿真)" t-en="Tang Foreigner Camel Figurine (Simulated)">唐三彩胡人牵驼俑 (仿真)</h3>
+                <p class="gallery-desc" t-zh="测试异域人物与动物互动。" t-en="Testing foreign figure and animal interaction.">
+                    测试异域人物与动物互动。
+                </p>
+                <div class="gallery-stats">
+                    <div class="gallery-stat"><span>148,000</span></div>
+                    <div class="gallery-stat"><span>99.0%</span></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="gallery-item" data-category="tangsancai" onclick="openModal('tangsancai-4')">
+            <div class="gallery-image">
+                <div class="compare-view">
+                    <div class="compare-half before">
+                        <span class="compare-label" t-zh="修复前" t-en="Before">修复前</span>
+                        <div class="gallery-image-placeholder">🐪</div>
+                    </div>
+                    <div class="compare-half after">
+                        <span class="compare-label" t-zh="修复后" t-en="After">修复后</span>
+                        <div class="gallery-image-placeholder">🐪</div>
+                    </div>
+                </div>
+                <span class="gallery-badge" t-zh="唐三彩" t-en="Tang Sancai">唐三彩</span>
+            </div>
+            <div class="gallery-content">
+                <h3 class="gallery-title" t-zh="唐三彩天王俑 (仿真)" t-en="Tang Heavenly King Figurine (Simulated)">唐三彩天王俑 (仿真)</h3>
+                <p class="gallery-desc" t-zh="测试威武造型与细节纹理。" t-en="Testing majestic form and detail texture.">
+                    测试威武造型与细节纹理。
+                </p>
+                <div class="gallery-stats">
+                    <div class="gallery-stat"><span>135,000</span></div>
+                    <div class="gallery-stat"><span>98.3%</span></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="gallery-item" data-category="tangsancai" onclick="openModal('tangsancai-5')">
+            <div class="gallery-image">
+                <div class="compare-view">
+                    <div class="compare-half before">
+                        <span class="compare-label" t-zh="修复前" t-en="Before">修复前</span>
+                        <div class="gallery-image-placeholder">🐪</div>
+                    </div>
+                    <div class="compare-half after">
+                        <span class="compare-label" t-zh="修复后" t-en="After">修复后</span>
+                        <div class="gallery-image-placeholder">🐪</div>
+                    </div>
+                </div>
+                <span class="gallery-badge" t-zh="唐三彩" t-en="Tang Sancai">唐三彩</span>
+            </div>
+            <div class="gallery-content">
+                <h3 class="gallery-title" t-zh="唐三彩净瓶仕女俑 (仿真)" t-en="Tang Pure Bottle Lady Figurine (Simulated)">唐三彩净瓶仕女俑 (仿真)</h3>
+                <p class="gallery-desc" t-zh="测试仕女姿态与器物协调。" t-en="Testing lady pose and object harmony.">
+                    测试仕女姿态与器物协调。
+                </p>
+                <div class="gallery-stats">
+                    <div class="gallery-stat"><span>129,000</span></div>
+                    <div class="gallery-stat"><span>98.0%</span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="load-more">
+        <button class="load-more-btn" onclick="loadMore()" t-zh="海量案例正在持续整合收录，敬请关注后续更新。" t-en="Load More Cases">加载更多案例</button>
+    </div>
+</div>
+
+<div id="caseModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 id="modalTitle">案例详情</h2>
+            <span class="close" onclick="closeModal()">&times;</span>
+        </div>
+        <div class="modal-body" id="modalBody"></div>
+    </div>
+</div>
+
+<!-- 登录模态框 -->
+<div id="loginModal" style="display: none; position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center;">
+    <div style="background: white; padding: 30px; border-radius: 24px; width: 320px; box-shadow: 0 20px 35px rgba(0,0,0,0.2); text-align: center;">
+        <h3 style="margin-bottom: 20px; color: #b45309;">用户登录</h3>
+        <input type="text" id="loginUsername" placeholder="用户名" style="width: 100%; padding: 10px; margin-bottom: 12px; border: 1px solid #ccc; border-radius: 40px;">
+        <input type="password" id="loginPassword" placeholder="密码" style="width: 100%; padding: 10px; margin-bottom: 20px; border: 1px solid #ccc; border-radius: 40px;">
+        <button id="loginSubmitBtn" style="background: #b45309; color: white; border: none; padding: 10px 20px; border-radius: 40px; width: 100%; cursor: pointer;">登录</button>
+        <button id="closeModalBtn" style="margin-top: 15px; background: none; border: none; color: #666; cursor: pointer;">关闭</button>
+    </div>
+</div>
+
+<div class="footer">
+    <p t-zh="瓷影新生 © 2026 | 古陶瓷数字化智能修复服务平台" t-en="Ceramic Revival © 2026 | Digital Intelligent Restoration Service Platform for Ancient Ceramics">
+        瓷影新生 © 2026 | 古陶瓷数字化智能修复服务平台
+    </p>
+</div>
+
+<script>
+/* ========= 案例数据 ========= */
+const cases = {
+    "pottery-1": {
+        title: { zh: "半坡人面鱼纹盆 (仿真)", en: "Banpo Fish-Pattern Basin (Simulated)" },
+        dataType: { zh: "Neolithic 开源数据", en: "Neolithic Open Data" },
+        source: { zh: "仰韶文化数据集", en: "Yangshao Dataset" },
+        points: "112,000",
+        accuracy: "97.2%",
+        time: "42h",
+        description: { zh: "测试新石器纹饰连续性补全。", en: "Testing Neolithic pattern continuity." },
+        defect: { zh: "内壁纹饰局部缺失", en: "Partial inner pattern loss" },
+        result: { zh: "成功还原纹饰拓扑结构。", en: "Topology successfully restored." }
+    },
+    "pottery-2": {
+        title: { zh: "龙山文化黑陶罐 (仿真)", en: "Longshan Black Pottery Jar (Simulated)" },
+        dataType: { zh: "考古复原模型", en: "Archaeological Reconstruction" },
+        source: { zh: "龙山文化遗址", en: "Longshan Site" },
+        points: "98,500",
+        accuracy: "96.8%",
+        time: "36h",
+        description: { zh: "测试薄胎黑陶的曲面修复。", en: "Testing thin-wall black pottery surface repair." },
+        defect: { zh: "口沿破损 + 表面划痕", en: "Rim damage + surface scratches" },
+        result: { zh: "曲面平滑过渡，无接缝。", en: "Smooth surface transition, no seams." }
+    },
+    "pottery-3": {
+        title: { zh: "河姆渡陶灶 (仿真)", en: "Hemudu Clay Stove (Simulated)" },
+        dataType: { zh: "遗址三维扫描", en: "Site 3D Scan" },
+        source: { zh: "河姆渡遗址", en: "Hemudu Site" },
+        points: "87,300",
+        accuracy: "95.5%",
+        time: "29h",
+        description: { zh: "测试复杂结构+多部件修复。", en: "Testing complex structure + multi-part repair." },
+        defect: { zh: "支架断裂 + 火膛缺损", en: "Leg broken + firebox missing" },
+        result: { zh: "结构稳定，功能形态还原。", en: "Structurally stable, functional form restored." }
+    },
+    "pottery-4": {
+        title: { zh: "马家窑彩陶盆 (仿真)", en: "Majiayao Painted Pottery Basin (Simulated)" },
+        dataType: { zh: "博物馆开放数据", en: "Museum Open Data" },
+        source: { zh: "国家博物馆藏", en: "National Museum Collection" },
+        points: "103,000",
+        accuracy: "97.9%",
+        time: "41h",
+        description: { zh: "测试几何纹饰+色彩一致性。", en: "Testing geometric pattern + color consistency." },
+        defect: { zh: "纹饰断裂 + 色彩褪色", en: "Pattern break + color fading" },
+        result: { zh: "纹饰连贯，色彩匹配度高。", en: "Pattern coherent, color match high." }
+    },
+    "pottery-5": {
+        title: { zh: "齐家文化三足器 (仿真)", en: "Qijia Tripod Vessel (Simulated)" },
+        dataType: { zh: "仿真点云", en: "Simulated Point Cloud" },
+        source: { zh: "齐家文化典型器", en: "Typical Qijia Ware" },
+        points: "91,200",
+        accuracy: "96.3%",
+        time: "33h",
+        description: { zh: "测试三足结构稳定性修复。", en: "Testing tripod stability restoration." },
+        defect: { zh: "一足断裂 + 底足磨损", en: "One leg broken + base worn" },
+        result: { zh: "三足承重均衡，形态自然。", en: "Balanced load, natural form." }
+    },
+    "porcelain-1": {
+        title: { zh: "宋代汝窑天青釉盘 (仿真)", en: "Song Ru Celadon Plate (Simulated)" },
+        dataType: { zh: "CC0 文物扫描", en: "CC0 Heritage Scan" },
+        source: { zh: "宋代官窑库", en: "Song Official Kiln" },
+        points: "98,000",
+        accuracy: "98.1%",
+        time: "38h",
+        description: { zh: "测试开片纹理与边缘磕碰的联合修复。", en: "Testing joint restoration of crackle and edge damage." },
+        defect: { zh: "边缘磕碰 + 开片模糊", en: "Edge chips + blurred crackle" },
+        result: { zh: "开片纹理与边缘同步修复。", en: "Crackle and edge jointly restored." }
+    },
+    "porcelain-2": {
+        title: { zh: "明代永乐甜白釉碗 (仿真)", en: "Ming Yongle Sweet White Bowl (Simulated)" },
+        dataType: { zh: "高分辨率扫描", en: "High-Res Scan" },
+        source: { zh: "故宫博物院", en: "Palace Museum" },
+        points: "105,000",
+        accuracy: "98.7%",
+        time: "44h",
+        description: { zh: "测试薄胎白瓷的精细修复。", en: "Testing fine restoration of thin-wall white porcelain." },
+        defect: { zh: "口沿微缺 + 釉面气泡", en: "Rim微缺 + glaze bubbles" },
+        result: { zh: "釉面均匀，无修复痕迹。", en: "Uniform glaze, no repair marks." }
+    },
+    "porcelain-3": {
+        title: { zh: "清代雍正粉彩瓶 (仿真)", en: "Qing Yongzheng Famille Rose Vase (Simulated)" },
+        dataType: { zh: "商业扫描数据", en: "Commercial Scan" },
+        source: { zh: "景德镇御窑厂", en: "Jingdezhen Imperial Kiln" },
+        points: "128,000",
+        accuracy: "99.2%",
+        time: "51h",
+        description: { zh: "测试彩绘图案与器型匹配。", en: "Testing painted pattern and shape matching." },
+        defect: { zh: "肩部彩绘脱落 + 底足缺损", en: "Shoulder painting loss + base missing" },
+        result: { zh: "彩绘还原，器型对称。", en: "Painting restored, shape symmetrical." }
+    },
+    "porcelain-4": {
+        title: { zh: "唐代越窑秘色瓷 (仿真)", en: "Tang Yue Kiln Secret Color Ware (Simulated)" },
+        dataType: { zh: "学术研究数据", en: "Academic Research Data" },
+        source: { zh: "法门寺地宫", en: "Famen Temple" },
+        points: "89,700",
+        accuracy: "97.4%",
+        time: "35h",
+        description: { zh: "测试半透明釉面的修复。", en: "Testing semi-transparent glaze restoration." },
+        defect: { zh: "釉面裂纹 + 器身变形", en: "Glaze cracks + body deformation" },
+        result: { zh: "釉面通透，器型矫正。", en: "Glaze translucent, form corrected." }
+    },
+    "porcelain-5": {
+        title: { zh: "宋代定窑白瓷孩儿枕 (仿真)", en: "Song Ding Kiln White Porcelain Pillow (Simulated)" },
+        dataType: { zh: "博物馆合作数据", en: "Museum Collaboration" },
+        source: { zh: "定州博物馆", en: "Dingzhou Museum" },
+        points: "112,500",
+        accuracy: "98.3%",
+        time: "47h",
+        description: { zh: "测试人物造型+细节纹理。", en: "Testing human form + detail texture." },
+        defect: { zh: "面部模糊 + 衣纹断裂", en: "Face blurred + clothing pattern break" },
+        result: { zh: "面部清晰，衣纹自然。", en: "Face clear, clothing natural." }
+    },
+    "changsha-1": {
+        title: { zh: "长沙窑诗文执壶 (仿真)", en: "Changsha Poem Ewer (Simulated)" },
+        dataType: { zh: "仿真点云数据", en: "Simulated Point Cloud" },
+        source: { zh: "长沙窑典型器型", en: "Typical Changsha Ware" },
+        points: "125,000",
+        accuracy: "98.5%",
+        time: "48h",
+        description: { zh: "测试文字与器型的空间协调修复。", en: "Testing spatial harmony of text and shape." },
+        defect: { zh: "壶口残缺 + 诗文模糊", en: "Mouth missing + blurry text" },
+        result: { zh: "文字风格与器型统一修复。", en: "Text style and shape unified." }
+    },
+    "changsha-2": {
+        title: { zh: "长沙窑莲花纹碗 (仿真)", en: "Changsha Lotus Bowl (Simulated)" },
+        dataType: { zh: "开源模型库", en: "Open Model Library" },
+        source: { zh: "长沙窑遗址出土", en: "Excavated from Changsha Site" },
+        points: "102,000",
+        accuracy: "97.8%",
+        time: "39h",
+        description: { zh: "测试莲花纹饰连续性。", en: "Testing lotus pattern continuity." },
+        defect: { zh: "碗心缺损 + 纹饰中断", en: "Center missing + pattern break" },
+        result: { zh: "纹饰完整，中心对称。", en: "Pattern complete, center symmetric." }
+    },
+    "changsha-3": {
+        title: { zh: "长沙窑胡人纹执壶 (仿真)", en: "Changsha Foreigner Ewer (Simulated)" },
+        dataType: { zh: "合作机构数据", en: "Partner Institution Data" },
+        source: { zh: "海外回流藏品", en: "Overseas Returned Collection" },
+        points: "118,000",
+        accuracy: "98.9%",
+        time: "46h",
+        description: { zh: "测试异域人物纹饰修复。", en: "Testing foreign figure pattern restoration." },
+        defect: { zh: "人物面部模糊 + 衣纹缺失", en: "Face blurred + clothing missing" },
+        result: { zh: "人物神态生动，衣纹流畅。", en: "Figure vivid, clothing smooth." }
+    },
+    "changsha-4": {
+        title: { zh: "长沙窑花鸟纹罐 (仿真)", en: "Changsha Flower-Bird Jar (Simulated)" },
+        dataType: { zh: "仿真重建", en: "Simulation Reconstruction" },
+        source: { zh: "典型纹饰数据库", en: "Typical Pattern Database" },
+        points: "95,300",
+        accuracy: "97.1%",
+        time: "34h",
+        description: { zh: "测试花鸟组合纹饰修复。", en: "Testing flower-bird composite pattern." },
+        defect: { zh: "鸟翼断裂 + 花瓣缺失", en: "Wing broken + petal missing" },
+        result: { zh: "鸟态自然，花瓣分布均匀。", en: "Bird natural, petals evenly distributed." }
+    },
+    "changsha-5": {
+        title: { zh: "长沙窑阿拉伯文盘 (仿真)", en: "Changsha Arabic Text Plate (Simulated)" },
+        dataType: { zh: "学术重建数据", en: "Academic Reconstruction" },
+        source: { zh: "海上丝绸之路出土", en: "Maritime Silk Road Excavation" },
+        points: "107,000",
+        accuracy: "98.0%",
+        time: "42h",
+        description: { zh: "测试非汉字文本修复。", en: "Testing non-Chinese text restoration." },
+        defect: { zh: "文字残缺 + 釉面剥落", en: "Text broken + glaze peeling" },
+        result: { zh: "文字可辨，釉面修复自然。", en: "Text legible, glaze naturally restored." }
+    },
+    "qinghua-1": {
+        title: { zh: "元青花缠枝莲纹罐 (仿真)", en: "Yuan Blue-and-White Jar (Simulated)" },
+        dataType: { zh: "ShapeNet 衍生数据", en: "ShapeNet Derived" },
+        source: { zh: "元代青花库", en: "Yuan Blue-and-White" },
+        points: "134,000",
+        accuracy: "97.9%",
+        time: "45h",
+        description: { zh: "测试大面积纹饰连续性补全。", en: "Testing large-area pattern continuity." },
+        defect: { zh: "腹部纹饰断裂", en: "Belly pattern fracture" },
+        result: { zh: "纹饰连续性与色彩一致。", en: "Pattern continuity preserved." }
+    },
+    "qinghua-2": {
+        title: { zh: "明宣德青花龙纹扁瓶 (仿真)", en: "Ming Xuande Blue-and-White Dragon Flask (Simulated)" },
+        dataType: { zh: "高清扫描", en: "High-Def Scan" },
+        source: { zh: "故宫博物院", en: "Palace Museum" },
+        points: "121,000",
+        accuracy: "98.6%",
+        time: "43h",
+        description: { zh: "测试龙纹动态与器型匹配。", en: "Testing dragon motion and shape matching." },
+        defect: { zh: "龙角断裂 + 云纹模糊", en: "Dragon horn broken + cloud blur" },
+        result: { zh: "龙姿矫健，云纹环绕自然。", en: "Dragon posture vigorous, clouds natural." }
+    },
+    "qinghua-3": {
+        title: { zh: "清康熙青花山水人物瓶 (仿真)", en: "Qing Kangxi Blue-and-White Landscape Vase (Simulated)" },
+        dataType: { zh: "博物馆授权数据", en: "Museum Licensed" },
+        source: { zh: "天津博物馆", en: "Tianjin Museum" },
+        points: "139,000",
+        accuracy: "99.1%",
+        time: "52h",
+        description: { zh: "测试山水人物复杂场景修复。", en: "Testing complex landscape figure scene." },
+        defect: { zh: "山体断裂 + 人物缺失", en: "Mountain broken + figure missing" },
+        result: { zh: "山势连贯，人物比例协调。", en: "Mountain continuous, figure proportion balanced." }
+    },
+    "qinghua-4": {
+        title: { zh: "明成化青花婴戏图碗 (仿真)", en: "Ming Chenghua Blue-and-White Child Bowl (Simulated)" },
+        dataType: { zh: "开源数据集", en: "Open Dataset" },
+        source: { zh: "大英博物馆藏", en: "British Museum Collection" },
+        points: "108,000",
+        accuracy: "97.6%",
+        time: "37h",
+        description: { zh: "测试儿童形象与动态修复。", en: "Testing child figure and motion restoration." },
+        defect: { zh: "孩童面部模糊 + 玩具缺失", en: "Child face blurred + toy missing" },
+        result: { zh: "孩童表情生动，玩具还原。", en: "Child expression vivid, toy restored." }
+    },
+    "qinghua-5": {
+        title: { zh: "清乾隆青花缠枝花卉纹盘 (仿真)", en: "Qing Qianlong Blue-and-White Floral Plate (Simulated)" },
+        dataType: { zh: "商业合作数据", en: "Commercial Partnership" },
+        source: { zh: "景德镇陶瓷馆", en: "Jingdezhen Ceramic Museum" },
+        points: "126,000",
+        accuracy: "98.4%",
+        time: "49h",
+        description: { zh: "测试密集花卉纹饰修复。", en: "Testing dense floral pattern restoration." },
+        defect: { zh: "花瓣重叠 + 枝蔓断裂", en: "Petal overlap + vine break" },
+        result: { zh: "花叶层次分明，枝蔓连贯。", en: "Flowers layered, vines continuous." }
+    },
+    "tangsancai-1": {
+        title: { zh: "唐三彩骆驼载乐俑 (仿真)", en: "Tang Camel Figurine (Simulated)" },
+        dataType: { zh: "自建仿真数据", en: "Self-built Simulation" },
+        source: { zh: "唐三彩典型器", en: "Typical Tang Sancai" },
+        points: "156,000",
+        accuracy: "99.1%",
+        time: "72h",
+        description: { zh: "测试非刚性形态与多对象结构。", en: "Testing non-rigid multi-object structure." },
+        defect: { zh: "腿部断裂 + 釉面脱落", en: "Leg fracture + glaze loss" },
+        result: { zh: "结构解剖合理，釉色统一。", en: "Anatomically plausible structure." }
+    },
+    "tangsancai-2": {
+        title: { zh: "唐三彩马球女俑 (仿真)", en: "Tang Polo Female Figurine (Simulated)" },
+        dataType: { zh: "学术研究模型", en: "Academic Model" },
+        source: { zh: "西安唐墓出土", en: "Xi'an Tang Tomb Excavation" },
+        points: "142,000",
+        accuracy: "98.8%",
+        time: "61h",
+        description: { zh: "测试女性服饰与动态姿态。", en: "Testing female dress and dynamic pose." },
+        defect: { zh: "衣袖破损 + 面部模糊", en: "Sleeve torn + face blurred" },
+        result: { zh: "衣袂飘逸，神态自然。", en: "Sleeves flowing, expression natural." }
+    },
+    "tangsancai-3": {
+        title: { zh: "唐三彩胡人牵驼俑 (仿真)", en: "Tang Foreigner Camel Figurine (Simulated)" },
+        dataType: { zh: "仿真重建数据", en: "Simulation Reconstruction" },
+        source: { zh: "洛阳唐墓", en: "Luoyang Tang Tomb" },
+        points: "148,000",
+        accuracy: "99.0%",
+        time: "67h",
+        description: { zh: "测试异域人物与动物互动。", en: "Testing foreign figure and animal interaction." },
+        defect: { zh: "驼峰塌陷 + 胡人面部缺失", en: "Hump collapsed + face missing" },
+        result: { zh: "驼形饱满，人物表情生动。", en: "Camel full, figure expressive." }
+    },
+    "tangsancai-4": {
+        title: { zh: "唐三彩天王俑 (仿真)", en: "Tang Heavenly King Figurine (Simulated)" },
+        dataType: { zh: "博物馆合作", en: "Museum Collaboration" },
+        source: { zh: "陕西历史博物馆", en: "Shaanxi History Museum" },
+        points: "135,000",
+        accuracy: "98.3%",
+        time: "58h",
+        description: { zh: "测试威武造型与细节纹理。", en: "Testing majestic form and detail texture." },
+        defect: { zh: "甲胄断裂 + 面部彩绘脱落", en: "Armor broken + face paint loss" },
+        result: { zh: "甲胄层次清晰，威仪十足。", en: "Armor layered, majestic presence." }
+    },
+    "tangsancai-5": {
+        title: { zh: "唐三彩净瓶仕女俑 (仿真)", en: "Tang Pure Bottle Lady Figurine (Simulated)" },
+        dataType: { zh: "开源模型库", en: "Open Model Library" },
+        source: { zh: "典型唐三彩器", en: "Typical Tang Sancai" },
+        points: "129,000",
+        accuracy: "98.0%",
+        time: "54h",
+        description: { zh: "测试仕女姿态与器物协调。", en: "Testing lady pose and object harmony." },
+        defect: { zh: "瓶身倾斜 + 衣纹断裂", en: "Bottle tilted + clothing break" },
+        result: { zh: "瓶正姿稳，衣纹流畅。", en: "Bottle upright, clothing smooth." }
+    }
+};
+
+/* ========= 弹窗逻辑 ========= */
+function openModal(id) {
+    const caseData = cases[id];
+    if (!caseData) return;
+
+    const isZh = currentLang === 'zh';
+
+    document.getElementById('modalTitle').textContent =
+        isZh ? caseData.title.zh : caseData.title.en;
+
+    document.getElementById('modalBody').innerHTML = `
+        <div class="modal-stats">
+            <div class="modal-stat">
+                <div class="modal-stat-value">${caseData.points}</div>
+                <div class="modal-stat-label" t-zh="点云数量" t-en="Point Count">点云数量</div>
+            </div>
+            <div class="modal-stat">
+                <div class="modal-stat-value">${caseData.accuracy}</div>
+                <div class="modal-stat-label" t-zh="修复精度" t-en="Accuracy">修复精度</div>
+            </div>
+            <div class="modal-stat">
+                <div class="modal-stat-value">${caseData.time}</div>
+                <div class="modal-stat-label" t-zh="处理耗时" t-en="Process Time">处理耗时</div>
+            </div>
+        </div>
+
+        <h3 t-zh="数据来源" t-en="Data Source">数据来源</h3>
+        <p>${isZh ? caseData.dataType.zh : caseData.dataType.en} (${isZh ? caseData.source.zh : caseData.source.en})</p>
+
+        <h3 t-zh="测试说明" t-en="Test Description">测试说明</h3>
+        <p>${isZh ? caseData.description.zh : caseData.description.en}</p>
+
+        <h3 t-zh="缺损描述" t-en="Defect Description">缺损描述</h3>
+        <p>${isZh ? caseData.defect.zh : caseData.defect.en}</p>
+
+        <h3 t-zh="算法结果" t-en="Algorithm Result">算法结果</h3>
+        <p>${isZh ? caseData.result.zh : caseData.result.en}</p>
+    `;
+
+    document.getElementById('caseModal').style.display = 'block';
+    document.body.style.overflow = 'hidden';
+}
+
+function closeModal() {
+    document.getElementById('caseModal').style.display = 'none';
+    document.body.style.overflow = 'auto';
+}
+
+window.addEventListener('click', e => {
+    if (e.target.id === 'caseModal') closeModal();
+});
+
+/* ========= 分类筛选 ========= */
+document.querySelectorAll('.filter-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+
+        const filter = btn.dataset.filter;
+        document.querySelectorAll('.gallery-item').forEach(item => {
+            item.style.display =
+                filter === 'all' || item.dataset.category === filter
+                    ? 'block'
+                    : 'none';
+        });
+    });
+});
+
+/* ========= 语言切换 ========= */
+let currentLang = localStorage.getItem('lang') || 'zh';
+
+function switchLanguage() {
+    currentLang = currentLang === 'zh' ? 'en' : 'zh';
+    localStorage.setItem('lang', currentLang);
+    applyLang();
+    updateLangBtn();
+}
+
+function updateLangBtn() {
+    const btn = document.getElementById('langBtn');
+    if (btn) btn.innerText = currentLang === 'zh' ? '中文' : 'English';
+}
+
+function applyLang() {
+    document.querySelectorAll('[t-zh][t-en]').forEach(el => {
+        el.innerText = currentLang === 'zh' ? el.getAttribute('t-zh') : el.getAttribute('t-en');
+    });
+}
+
+// 登录弹窗
+const modal = document.getElementById('loginModal');
+const loginBtn = document.getElementById('loginBtn');
+const closeModalBtn = document.getElementById('closeModalBtn');
+const loginSubmitBtn = document.getElementById('loginSubmitBtn');
+
+if (loginBtn) {
+    loginBtn.onclick = (e) => {
+        e.preventDefault();
+        if (modal) modal.style.display = 'flex';
+    };
+}
+if (closeModalBtn) {
+    closeModalBtn.onclick = () => {
+        if (modal) modal.style.display = 'none';
+    };
+}
+if (loginSubmitBtn) {
+    loginSubmitBtn.onclick = () => {
+        const username = document.getElementById('loginUsername').value;
+        const password = document.getElementById('loginPassword').value;
+        const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]).{8,}$/;
+        
+        if (!username || !password) {
+            alert('请输入用户名和密码');
+            return;
+        }
+        if (!passwordRegex.test(password)) {
+            alert('密码不符合规则！\n密码需满足：\n1. 至少8位\n2. 包含字母、数字和特殊字符');
+            return;
+        }
+        alert(`欢迎 ${username}，登录成功`);
+        modal.style.display = 'none';
+    };
+}
+if (modal) {
+    modal.onclick = (e) => {
+        if (e.target === modal) modal.style.display = 'none';
+    };
+}
+
+function loadMore() {
+    alert("海量案例正在持续整合收录，敬请关注后续更新。");
+}
+
+window.onload = () => {
+    applyLang();
+    updateLangBtn();
+};
+</script>
+
+</body>
+</html>

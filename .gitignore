@@ -1,0 +1,52 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+*.egg-info/
+dist/
+build/
+
+# PyTorch - 预训练模型太大，不上传
+*.pth
+*.pt
+ckpts/
+
+# 数据文件
+*.ply
+*.xyz
+*.pcd
+
+# 上传和处理的文件
+uploads/
+processed/
+user_data/
+
+# 临时文件
+*.tmp
+*.log
+*.swp
+*.bak
+
+# IDE
+.vs/
+.vscode/
+.idea/
+*.sln
+*.slnx
+
+# macOS
+.DS_Store
+
+# 其他
+*.egg
+dist/
+build/
+
+# PoinTr 子模块
+PoinTr/.git
+Pointnet2_PyTorch/.git

@@ -1,0 +1,1054 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>瓷影新生 - 基于AIGC与三维点云的陶瓷文物数字化修复平台</title>
+    
+    <style>
+        :root {
+    --bg-primary: linear-gradient(145deg, #f8fafc 0%, #eef2ff 100%);
+    --bg-secondary: rgba(255,255,255,0.9);
+    --bg-tertiary: rgba(0,0,0,0.04);
+    --bg-hover: rgba(251,191,36,0.12);
+    --text-primary: #1e293b;
+    --text-secondary: #475569;
+    --text-accent: #b45309;
+    --text-accent-dark: #92400e;
+    --border-color: rgba(180, 83, 9, 0.2);
+    --success-color: #10b981;
+    --error-color: #ef4444;
+    --canvas-bg: #ffffff;
+    --modal-bg: rgba(255, 255, 255, 0.96);
+    --shadow-lg: 0 8px 32px rgba(0,0,0,0.08);
+    --shadow-md: 0 4px 16px rgba(0,0,0,0.05);
+    --radius-xl: 24px;
+    --radius-lg: 18px;
+    --radius-md: 12px;
+    --transition-base: all 0.3s ease;
+}
+
+        [data-theme="light"] {
+            --bg-primary: linear-gradient(145deg, #f8fafc 0%, #e2e8f0 100%);
+            --bg-secondary: rgba(255,255,255,0.85);
+            --bg-tertiary: rgba(0,0,0,0.08);
+            --bg-hover: rgba(255,215,0,0.15);
+            --text-primary: #1e293b;
+            --text-secondary: #64748b;
+            --text-accent: #b45309;
+            --border-color: rgba(217, 119, 6, 0.2);
+            --canvas-bg: #eef2f7;
+            --modal-bg: rgba(255, 255, 255, 0.94);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Microsoft YaHei', 'Segoe UI', system-ui, sans-serif;
+            background: var(--bg-primary);
+            background-attachment: fixed;
+            min-height: 100vh;
+            color: var(--text-primary);
+            transition: var(--transition-base);
+            animation: fadeInBody 0.6s ease;
+        }
+
+        @keyframes fadeInBody {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .navbar {
+            background: var(--bg-tertiary);
+            padding: 16px 32px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--border-color);
+            transition: var(--transition-base);
+            box-shadow: var(--shadow-md);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .logo {
+            font-size: 22px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            background: linear-gradient(135deg, var(--text-accent), var(--text-accent-dark));
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            text-decoration: none;
+        }
+
+        .logo span {
+            color: var(--text-secondary);
+            background: none;
+            -webkit-background-clip: unset;
+            background-clip: unset;
+            font-weight: 500;
+            font-size: 16px;
+        }
+
+        .nav-links {
+            display: flex;
+            align-items: center;
+            gap: 24px;
+        }
+
+        .nav-links a {
+            color: var(--text-primary);
+            text-decoration: none;
+            font-size: 15px;
+            padding: 6px 12px;
+            border-radius: var(--radius-md);
+            transition: var(--transition-base);
+        }
+
+        .nav-links a:hover {
+            color: var(--text-accent);
+            background: var(--bg-hover);
+        }
+
+        .hamburger {
+            display: none;
+            cursor: pointer;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .hamburger span {
+            width: 26px;
+            height: 3px;
+            background: var(--text-accent);
+            border-radius: 3px;
+            transition: var(--transition-base);
+        }
+
+        .container {
+            max-width: 1440px;
+            margin: 0 auto;
+            padding: 40px 30px;
+            padding-bottom: 60px;
+        }
+
+        .hero {
+            text-align: center;
+            margin-bottom: 50px;
+            animation: slideUp 0.6s ease;
+        }
+
+        @keyframes slideUp {
+            from { transform: translateY(20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        .hero h1 {
+            font-size: 44px;
+            margin-bottom: 16px;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--text-primary) 30%, var(--text-accent) 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
+
+        .hero p {
+            color: var(--text-secondary);
+            font-size: 18px;
+            letter-spacing: 0.5px;
+        }
+
+        .main-content {
+            display: flex;
+            gap: 32px;
+            flex-wrap: wrap;
+        }
+
+        .upload-section {
+            flex: 1;
+            min-width: 300px;
+            background: var(--bg-secondary);
+            border-radius: var(--radius-xl);
+            padding: 30px;
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--border-color);
+            box-shadow: var(--shadow-lg);
+            transition: var(--transition-base);
+        }
+
+        .upload-section:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 40px rgba(0,0,0,0.4);
+        }
+
+        .upload-section h3 {
+            margin-bottom: 24px;
+            color: var(--text-accent);
+            font-size: 24px;
+            font-weight: 600;
+        }
+
+        .upload-area {
+            border: 2px dashed var(--border-color);
+            border-radius: var(--radius-lg);
+            padding: 45px 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: var(--transition-base);
+            background: var(--bg-tertiary);
+        }
+
+        .upload-area:hover {
+            border-color: var(--text-accent);
+            background: var(--bg-hover);
+            transform: scale(1.01);
+        }
+
+        .upload-area.dragover {
+            border-color: var(--text-accent);
+            background: var(--bg-hover);
+        }
+
+        .upload-icon {
+            font-size: 52px;
+            margin-bottom: 16px;
+            color: var(--text-accent);
+        }
+
+        .upload-hint {
+            color: var(--text-secondary);
+            font-size: 14px;
+            margin-top: 12px;
+        }
+
+        #fileInput {
+            display: none;
+        }
+
+        .btn {
+    background: linear-gradient(135deg, #b45309, #92400e);
+    border: none;
+    padding: 14px 30px;
+    border-radius: 32px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: var(--transition-base);
+    margin-top: 22px;
+    width: 100%;
+    color: #ffffff; /* 文字改为白色 */
+    box-shadow: 0 4px 16px rgba(180, 83, 9, 0.35);
+}
+
+        .btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 20px rgba(251,191,36,0.35);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .status-info {
+            margin-top: 22px;
+            padding: 16px;
+            background: var(--bg-tertiary);
+            border-radius: var(--radius-md);
+            font-size: 14px;
+            transition: var(--transition-base);
+            border-left: 4px solid transparent;
+        }
+
+        .status-info.success {
+            border-left-color: var(--success-color);
+        }
+
+        .status-info.error {
+            border-left-color: var(--error-color);
+        }
+
+        .status-info.loading {
+            border-left-color: var(--text-accent);
+        }
+
+        .viewer-section {
+            flex: 2;
+            min-width: 520px;
+            background: var(--bg-secondary);
+            border-radius: var(--radius-xl);
+            padding: 24px;
+            border: 1px solid var(--border-color);
+            box-shadow: var(--shadow-lg);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            transition: var(--transition-base);
+        }
+
+        .viewer-section:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 40px rgba(0,0,0,0.4);
+        }
+
+        .viewer-section h3 {
+            margin-bottom: 18px;
+            color: var(--text-accent);
+            font-size: 22px;
+            font-weight: 600;
+        }
+
+        #canvas-container {
+            width: 100%;
+            height: 520px;
+            background: var(--canvas-bg);
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+            position: relative;
+            border: 1px solid var(--border-color);
+        }
+
+        .viewer-tip {
+            margin-top: 14px;
+            font-size: 13px;
+            color: var(--text-secondary);
+            text-align: center;
+        }
+
+        .compare-controls {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 18px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .compare-controls label {
+            color: var(--text-secondary);
+            font-size: 14px;
+        }
+
+        .compare-controls select {
+            padding: 9px 16px;
+            border-radius: 24px;
+            border: 1px solid var(--border-color);
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            font-size: 14px;
+            cursor: pointer;
+            transition: var(--transition-base);
+        }
+
+        .compare-controls select:focus {
+            outline: none;
+            border-color: var(--text-accent);
+        }
+
+        .compare-slider-container {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            min-width: 220px;
+        }
+
+        .compare-slider {
+            flex: 1;
+            height: 6px;
+            border-radius: 3px;
+            background: var(--border-color);
+            appearance: none;
+            cursor: pointer;
+        }
+
+        .compare-slider::-webkit-slider-thumb {
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--text-accent), var(--text-accent-dark));
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(251,191,36,0.3);
+        }
+
+        .compare-value {
+            color: var(--text-accent);
+            font-size: 14px;
+            min-width: 40px;
+            text-align: center;
+        }
+
+        .stats-panel {
+            position: absolute;
+            top: 14px;
+            right: 14px;
+            background: var(--bg-tertiary);
+            border-radius: var(--radius-md);
+            padding: 14px;
+            font-size: 12px;
+            color: var(--text-secondary);
+            border: 1px solid var(--border-color);
+            z-index: 10;
+            max-width: 220px;
+            backdrop-filter: blur(8px);
+        }
+
+        .stats-panel h4 {
+            color: var(--text-accent);
+            margin: 0 0 10px 0;
+            font-size: 14px;
+        }
+
+        .stats-panel p {
+            margin: 5px 0;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .stats-panel span {
+            color: var(--success-color);
+            font-weight: 500;
+        }
+
+        .render-modes {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 18px;
+        }
+
+        .render-mode-btn {
+            flex: 1;
+            padding: 9px 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 24px;
+            background: var(--bg-tertiary);
+            color: var(--text-secondary);
+            font-size: 13px;
+            cursor: pointer;
+            transition: var(--transition-base);
+        }
+
+        .render-mode-btn:hover {
+            border-color: var(--text-accent);
+            color: var(--text-accent);
+            background: var(--bg-hover);
+        }
+
+        .render-mode-btn.active {
+    background: linear-gradient(135deg, var(--text-accent), var(--text-accent-dark));
+    color: #ffffff;
+    border-color: var(--text-accent);
+    font-weight: 600;
+}
+
+        .export-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 18px;
+        }
+
+        .footer {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            border-radius: 0;
+            text-align: center;
+            padding: 16px;
+            color: var(--text-secondary);
+            font-size: 14px;
+            border-top: 1px solid var(--border-color);
+            background: var(--bg-tertiary);
+            backdrop-filter: blur(8px);
+            z-index: 99;
+        }
+        
+
+        @media (max-width: 900px) {
+            .main-content {
+                flex-direction: column;
+            }
+            .viewer-section {
+                min-width: auto;
+            }
+            .navbar {
+                padding: 14px 20px;
+            }
+            .hamburger {
+                display: flex;
+            }
+            .nav-links {
+                position: fixed;
+                top: 72px;
+                right: -100%;
+                width: 220px;
+                height: calc(100vh - 72px);
+                background: var(--modal-bg);
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                gap: 24px;
+                transition: right 0.3s ease;
+                border-left: 1px solid var(--border-color);
+                backdrop-filter: blur(16px);
+            }
+            .nav-links.active {
+                right: 0;
+            }
+            .nav-links a {
+                margin: 0;
+                font-size: 17px;
+            }
+        }
+
+        @media (max-width: 600px) {
+            .container {
+                padding: 20px 15px;
+            }
+            .hero h1 {
+                font-size: 30px;
+            }
+            .hero p {
+                font-size: 15px;
+            }
+            .upload-section,
+            .viewer-section {
+                padding: 20px;
+            }
+            #canvas-container {
+                height: 320px;
+            }
+        }
+
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: var(--border-color);
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+    </style>
+    <script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
+<script src="https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js"></script>
+<script src="https://unpkg.com/three@0.160.0/examples/jsm/renderers/CSS2DRenderer.js"></script>
+<script src="https://unpkg.com/three@0.160.0/examples/jsm/loaders/PLYLoader.js"></script>
+</head>
+<body>
+    <nav class="navbar">
+        <a href="/" class="logo" t-zh="🏺 瓷影新生" t-en="🏺 Ceramic Revival">🏺 瓷影新生</a>
+        <div class="nav-links">
+            <a href="/" t-zh="首页" t-en="Home">首页</a>
+            <a href="/gallery" t-zh="修复案例" t-en="Gallery">修复案例</a>
+            <a href="/about" t-zh="关于我们" t-en="About">关于我们</a>
+            <a href="/help" t-zh="帮助" t-en="Help">帮助</a>
+            <a href="javascript:switchLanguage()" id="langBtn">中文</a>
+            <a href="javascript:void(0)" id="loginBtn">登录</a>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="hero">
+            <h1 t-zh="瓷影新生 · 陶瓷文物智能修复平台" t-en="Ceramic Revival · AI-Powered Restoration Platform">瓷影新生 · 陶瓷文物智能修复平台</h1>
+            <p t-zh="AI 智能补全 · 三维实时展示 · 数字文保创新平台" t-en="AI Completion · Real-time 3D · Digital Preservation">AI 智能补全 · 三维实时展示 · 数字文保创新平台</p>
+        </div>
+
+        <div class="main-content">
+            <!-- 左侧上传区 -->
+            <div class="upload-section">
+                <h3>📤 点云数据导入与处理</h3>
+                <div class="upload-area" id="uploadArea">
+                    <div class="upload-icon">📂</div>
+                    <div>点击或拖拽上传残缺点云文件</div>
+                    <div class="upload-hint">支持格式：PLY / PCD / TXT / XYZ / OBJ</div>
+                </div>
+                <input type="file" id="fileInput" accept=".ply,.pcd,.txt,.xyz,.obj,.PLY,.PCD">
+                <button class="btn" id="uploadBtn" disabled>上传并开始修复</button>
+                
+                <div id="statusArea" class="status-info">
+                    💡 请上传点云文件，系统将自动完成预处理与智能修复 (示例: 上传后展示三维点云)
+                </div>
+
+                <div style="margin-top: 24px; padding-top: 24px; border-top: 1px solid var(--border-color);">
+                    <h4 style="color:var(--text-accent); margin-bottom:12px; font-size:16px;">🔧 标准技术流程</h4>
+                    <p style="font-size:13px; line-height:1.8; color:var(--text-secondary);">
+                        1. 三维扫描 → 文物点云数据采集<br>
+                        2. 数据预处理 → 去噪、配准、标准化<br>
+                        3. AIGC扩散模型 → 智能缺损补全<br>
+                        4. 三维重建 → 轻量化网页展示
+                    </p>
+                </div>
+                
+                <div style="margin-top: 24px; padding-top: 24px; border-top: 1px solid var(--border-color);">
+                    <h4 style="color:var(--text-accent); margin-bottom:12px; font-size:16px;">💾 成果导出与保存</h4>
+                    <div class="export-buttons">
+                        <button class="render-mode-btn" id="snapshotBtn">📸 截图</button>
+                        <button class="render-mode-btn" id="exportBtn">📄 导出点云</button>
+                        <button class="render-mode-btn" id="exportModelBtn">📦 导出模型</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 右侧三维展示区 -->
+            <div class="viewer-section">
+                <h3>🏺 陶瓷文物三维修复成果展示</h3>
+                
+                <div class="render-modes">
+                    <button class="render-mode-btn active" data-mode="solid">实体渲染</button>
+                    <button class="render-mode-btn" data-mode="wireframe">线框结构</button>
+                    <button class="render-mode-btn" data-mode="point">点云视图</button>
+                </div>
+                
+                <div class="compare-controls">
+                    <label>对比模式：
+                        <select id="compareMode">
+                            <option value="fixed">修复结果</option>
+                            <option value="original">原始残损</option>
+                            <option value="compare">同步对比</option>
+                        </select>
+                    </label>
+                    <div class="compare-slider-container" id="compareSliderContainer" style="display: none;">
+                        <span class="compare-value" id="compareValue">50%</span>
+                        <input type="range" class="compare-slider" id="compareSlider" min="0" max="100" value="50">
+                    </div>
+                </div>
+                
+                <div id="canvas-container">
+                    <div class="stats-panel" id="statsPanel">
+                        <h4>📊 点云数据统计</h4>
+                        <p>点数：<span id="pointCount">-</span></p>
+                        <p>X 范围：<span id="xRange">-</span></p>
+                        <p>Y 范围：<span id="yRange">-</span></p>
+                        <p>Z 范围：<span id="zRange">-</span></p>
+                    </div>
+                </div>
+                <div class="viewer-tip">
+                    左键旋转｜右键平移｜滚轮缩放 · 三维文物轻量化交互展示系统
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="footer">
+        <p t-zh="瓷影新生 © 2026 | 古陶瓷数字化智能修复服务平台" t-en="Ceramic Revival © 2026 | Digital Intelligent Restoration Service Platform for Ancient Ceramics">
+            瓷影新生 © 2026 | 古陶瓷数字化智能修复服务平台
+        </p>
+    </div>
+    
+    2. 在 </body> 之前添加登录模态框的 HTML
+放在 </div> (footer) 之后，</body> 之前。添加：
+
+html
+<!-- 登录模态框 -->
+<div id="loginModal" style="display: none; position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center;">
+    <div style="background: white; padding: 30px; border-radius: 24px; width: 320px; box-shadow: 0 20px 35px rgba(0,0,0,0.2); text-align: center;">
+        <h3 style="margin-bottom: 20px; color: #b45309;">用户登录</h3>
+        <input type="text" id="loginUsername" placeholder="用户名" style="width: 100%; padding: 10px; margin-bottom: 12px; border: 1px solid #ccc; border-radius: 40px;">
+        <input type="password" id="loginPassword" placeholder="密码" style="width: 100%; padding: 10px; margin-bottom: 20px; border: 1px solid #ccc; border-radius: 40px;">
+        <button id="loginSubmitBtn" style="background: #b45309; color: white; border: none; padding: 10px 20px; border-radius: 40px; width: 100%; cursor: pointer;">登录</button>
+        <button id="closeModalBtn" style="margin-top: 15px; background: none; border: none; color: #666; cursor: pointer;">关闭</button>
+    </div>
+</div>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+   <script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { PLYLoader } from 'three/addons/loaders/PLYLoader.js';
+
+const container = document.getElementById('canvas-container');
+const fileInput = document.getElementById('fileInput');
+const uploadBtn = document.getElementById('uploadBtn');
+const statusArea = document.getElementById('statusArea');
+const uploadArea = document.getElementById('uploadArea');
+const snapshotBtn = document.getElementById('snapshotBtn');
+const exportBtn = document.getElementById('exportBtn');
+const exportModelBtn = document.getElementById('exportModelBtn');
+
+// 初始化场景
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xf8f5f0);
+scene.add(new THREE.AmbientLight(0x606060));
+
+// 添加更清晰的光源
+const mainLight = new THREE.DirectionalLight(0xffffff, 1);
+mainLight.position.set(2, 5, 3);
+mainLight.castShadow = true;
+scene.add(mainLight);
+
+const fillLight = new THREE.DirectionalLight(0xffccaa, 0.5);
+fillLight.position.set(-2, 1, 2);
+scene.add(fillLight);
+
+const backLight = new THREE.DirectionalLight(0x88aaff, 0.4);
+backLight.position.set(0, 2, -3);
+scene.add(backLight);
+
+const ambientLight = new THREE.AmbientLight(0x404060);
+scene.add(ambientLight);
+
+// 相机
+const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 1000);
+camera.position.set(3, 2, 4);
+camera.lookAt(0, 0, 0);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+renderer.setSize(container.clientWidth, container.clientHeight);
+renderer.setPixelRatio(window.devicePixelRatio);
+renderer.shadowMap.enabled = true;
+container.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.05;
+controls.rotateSpeed = 1.0;
+controls.zoomSpeed = 1.2;
+controls.target.set(0, 0, 0);
+
+// 辅助元素
+const gridHelper = new THREE.GridHelper(6, 20, 0xb0a090, 0xd0c8c0);
+gridHelper.position.y = -0.8;
+gridHelper.material.transparent = true;
+gridHelper.material.opacity = 0.4;
+scene.add(gridHelper);
+
+// 示例实体模型（花瓶）
+const demoGroup = new THREE.Group();
+
+const bodyGeo = new THREE.CylinderGeometry(0.7, 0.55, 1.1, 64);
+const bodyMat = new THREE.MeshStandardMaterial({ color: 0xcd7a32, roughness: 0.3, metalness: 0.1 });
+const body = new THREE.Mesh(bodyGeo, bodyMat);
+body.castShadow = true;
+body.receiveShadow = false;
+demoGroup.add(body);
+
+const neckGeo = new THREE.CylinderGeometry(0.38, 0.48, 0.32, 64);
+const neckMat = new THREE.MeshStandardMaterial({ color: 0xbc6f2c });
+const neck = new THREE.Mesh(neckGeo, neckMat);
+neck.position.y = 0.68;
+demoGroup.add(neck);
+
+const rimGeo = new THREE.TorusGeometry(0.42, 0.05, 32, 80);
+const rimMat = new THREE.MeshStandardMaterial({ color: 0xdd9933 });
+const rim = new THREE.Mesh(rimGeo, rimMat);
+rim.position.y = 0.88;
+rim.rotation.x = Math.PI / 2;
+demoGroup.add(rim);
+
+scene.add(demoGroup);
+
+// 全局变量
+let selectedFile = null;
+let originalMesh = null;
+let repairedMesh = null;
+let currentMode = "fixed";
+
+// ========== 核心函数：将 PLY 加载为实体网格 ==========
+function loadPLYAsMesh(url, color, onSuccess, onError) {
+    const loader = new PLYLoader();
+    loader.load(url, (geometry) => {
+        // 计算法向量（让光照效果正确）
+        geometry.computeVertexNormals();
+
+        // 创建材质（标准网格材质，不是 PointsMaterial）
+        const material = new THREE.MeshStandardMaterial({
+            color: color,
+            roughness: 0.4,
+            metalness: 0.3,
+            flatShading: false,
+            side: THREE.DoubleSide  // 双面渲染，防止背面消失
+        });
+
+        const mesh = new THREE.Mesh(geometry, material);
+        mesh.castShadow = true;
+        mesh.receiveShadow = false;
+
+        // 计算并居中模型
+        geometry.computeBoundingBox();
+        const box = geometry.boundingBox;
+        const center = new THREE.Vector3(
+            (box.min.x + box.max.x) / 2,
+            (box.min.y + box.max.y) / 2,
+            (box.min.z + box.max.z) / 2
+        );
+        mesh.position.sub(center);
+
+        // 调整相机
+        const size = Math.max(
+            box.max.x - box.min.x,
+            box.max.y - box.min.y,
+            box.max.z - box.min.z
+        );
+        const distance = size * 1.5;
+        camera.position.set(distance * 0.8, distance * 0.6, distance);
+        controls.target.set(0, 0, 0);
+        controls.update();
+
+        // 更新统计面板
+        updateStatsPanel(geometry);
+
+        if (onSuccess) onSuccess(mesh);
+    }, undefined, (error) => {
+        console.error("PLY 加载失败:", error);
+        if (onError) onError(error);
+    });
+}
+
+function updateStatsPanel(geometry) {
+    if (!geometry || !geometry.attributes.position) return;
+    const positions = geometry.attributes.position.array;
+    const pointCount = positions.length / 3;
+    document.getElementById('pointCount').innerText = pointCount.toLocaleString();
+
+    // 计算范围
+    let minX = Infinity, maxX = -Infinity;
+    let minY = Infinity, maxY = -Infinity;
+    let minZ = Infinity, maxZ = -Infinity;
+    for (let i = 0; i < positions.length; i += 3) {
+        const x = positions[i];
+        const y = positions[i+1];
+        const z = positions[i+2];
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
+        if (y < minY) minY = y;
+        if (y > maxY) maxY = y;
+        if (z < minZ) minZ = z;
+        if (z > maxZ) maxZ = z;
+    }
+    document.getElementById('xRange').innerText = `${minX.toFixed(3)} ~ ${maxX.toFixed(3)}`;
+    document.getElementById('yRange').innerText = `${minY.toFixed(3)} ~ ${maxY.toFixed(3)}`;
+    document.getElementById('zRange').innerText = `${minZ.toFixed(3)} ~ ${maxZ.toFixed(3)}`;
+}
+
+// 渲染模式切换（针对实体网格）
+function setRenderMode(mode) {
+    const meshes = [originalMesh, repairedMesh];
+    meshes.forEach(mesh => {
+        if (!mesh) return;
+        if (mode === 'wireframe') {
+            mesh.material.wireframe = true;
+        } else {
+            mesh.material.wireframe = false;
+        }
+    });
+}
+
+// 对比模式混合（透明度混合）
+function applyMixRatio(ratio) {
+    if (!originalMesh || !repairedMesh) return;
+    originalMesh.material.transparent = true;
+    repairedMesh.material.transparent = true;
+    originalMesh.material.opacity = 1 - ratio;
+    repairedMesh.material.opacity = ratio;
+}
+
+// ========== UI 事件绑定 ==========
+uploadArea.onclick = () => fileInput.click();
+uploadArea.addEventListener('dragover', e => e.preventDefault());
+uploadArea.addEventListener('drop', e => {
+    e.preventDefault();
+    if (e.dataTransfer.files[0]) handleFileSelect(e.dataTransfer.files[0]);
+});
+
+function handleFileSelect(file) {
+    selectedFile = file;
+    statusArea.textContent = `✅ 已选择：${file.name}`;
+    statusArea.className = "status-info success";
+    uploadBtn.disabled = false;
+}
+
+fileInput.addEventListener('change', e => {
+    if (e.target.files[0]) handleFileSelect(e.target.files[0]);
+});
+
+uploadBtn.onclick = async () => {
+    if (!selectedFile) {
+        alert("请先选择文件");
+        return;
+    }
+
+    uploadBtn.disabled = true;
+    statusArea.textContent = "⏳ 正在加载模型...";
+    statusArea.className = "status-info loading";
+
+    const fileURL = URL.createObjectURL(selectedFile);
+
+    // 加载原始模型（红色）
+    loadPLYAsMesh(fileURL, 0xff6666, (mesh) => {
+        URL.revokeObjectURL(fileURL);
+
+        // 移除示例和旧模型
+        scene.remove(demoGroup);
+        if (originalMesh) scene.remove(originalMesh);
+        if (repairedMesh) scene.remove(repairedMesh);
+
+        originalMesh = mesh;
+        scene.add(originalMesh);
+
+        statusArea.textContent = "⏳ 原始模型已加载，正在调用AI修复...";
+
+        // 上传到后端
+        const formData = new FormData();
+        formData.append('file', selectedFile);
+
+        fetch('/upload', { method: 'POST', body: formData })
+            .then(res => res.json())
+            .then(data => {
+                if (!data.success) throw new Error(data.error || "修复失败");
+
+                const repairedPath = `/processed/${data.processed_filename}`;
+                console.log("修复后文件路径:", repairedPath);
+
+                // 加载修复后的模型（绿色）
+                loadPLYAsMesh(repairedPath, 0x66ff66, (mesh) => {
+                    repairedMesh = mesh;
+                    scene.add(repairedMesh);
+
+                    // 根据模式显示
+                    if (currentMode === "fixed") {
+                        originalMesh.visible = false;
+                        repairedMesh.visible = true;
+                    } else if (currentMode === "original") {
+                        originalMesh.visible = true;
+                        repairedMesh.visible = false;
+                    } else {
+                        originalMesh.visible = true;
+                        repairedMesh.visible = true;
+                        applyMixRatio(0.5);
+                    }
+
+                    statusArea.textContent = `✅ 修复完成！`;
+                    statusArea.className = "status-info success";
+                }, (err) => {
+                    console.error("修复模型加载失败", err);
+                    statusArea.textContent = "❌ 修复模型加载失败";
+                    statusArea.className = "status-info error";
+                });
+            })
+            .catch(err => {
+                console.error("修复错误:", err);
+                statusArea.textContent = `❌ 修复失败：${err.message}`;
+                statusArea.className = "status-info error";
+            })
+            .finally(() => {
+                uploadBtn.disabled = false;
+            });
+    }, (error) => {
+        console.error("原始模型加载失败", error);
+        statusArea.textContent = "❌ 模型加载失败，请检查文件格式";
+        statusArea.className = "status-info error";
+        uploadBtn.disabled = false;
+        URL.revokeObjectURL(fileURL);
+    });
+};
+
+// 渲染模式按钮
+const renderModeBtns = document.querySelectorAll('.render-mode-btn[data-mode]');
+renderModeBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+        renderModeBtns.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        setRenderMode(btn.dataset.mode);
+    });
+});
+
+// 对比模式
+const compareModeSelect = document.getElementById('compareMode');
+const compareSlider = document.getElementById('compareSlider');
+const sliderContainer = document.getElementById('compareSliderContainer');
+
+compareModeSelect.addEventListener('change', (e) => {
+    currentMode = e.target.value;
+    if (currentMode === "original") {
+        sliderContainer.style.display = "none";
+        if (originalMesh) originalMesh.visible = true;
+        if (repairedMesh) repairedMesh.visible = false;
+    } else if (currentMode === "fixed") {
+        sliderContainer.style.display = "none";
+        if (originalMesh) originalMesh.visible = false;
+        if (repairedMesh) repairedMesh.visible = true;
+    } else {
+        sliderContainer.style.display = "flex";
+        if (originalMesh) originalMesh.visible = true;
+        if (repairedMesh) repairedMesh.visible = true;
+        applyMixRatio(0.5);
+    }
+});
+
+compareSlider.addEventListener('input', (e) => {
+    const ratio = e.target.value / 100;
+    document.getElementById('compareValue').innerText = `${Math.round(ratio*100)}%`;
+    if (currentMode === "compare") applyMixRatio(ratio);
+});
+
+// 截图
+snapshotBtn.onclick = () => {
+    const a = document.createElement('a');
+    a.download = "ceramic_snapshot.png";
+    a.href = renderer.domElement.toDataURL();
+    a.click();
+};
+
+exportBtn.onclick = () => alert("导出点云功能开发中");
+exportModelBtn.onclick = () => alert("导出模型功能开发中");
+
+// 动画
+function animate() {
+    requestAnimationFrame(animate);
+    controls.update();
+    renderer.render(scene, camera);
+}
+animate();
+
+window.addEventListener('resize', () => {
+    camera.aspect = container.clientWidth / container.clientHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(container.clientWidth, container.clientHeight);
+});
+
+// 登录弹窗
+const modal = document.getElementById('loginModal');
+const loginBtn = document.getElementById('loginBtn');
+const closeModalBtn = document.getElementById('closeModalBtn');
+const loginSubmitBtn = document.getElementById('loginSubmitBtn');
+
+if (loginBtn) loginBtn.onclick = (e) => { e.preventDefault(); if (modal) modal.style.display = 'flex'; };
+if (closeModalBtn) closeModalBtn.onclick = () => { if (modal) modal.style.display = 'none'; };
+if (loginSubmitBtn) {
+    loginSubmitBtn.onclick = () => {
+        const username = document.getElementById('loginUsername').value;
+        const password = document.getElementById('loginPassword').value;
+        if (!username || !password) { alert('请输入用户名和密码'); return; }
+        alert(`欢迎 ${username}，登录成功（演示模式）`);
+        if (modal) modal.style.display = 'none';
+    };
+}
+if (modal) modal.onclick = (e) => { if (e.target === modal) modal.style.display = 'none'; };
+</script>
+    
+</body>
+</html>
