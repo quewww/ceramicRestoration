@@ -581,6 +581,15 @@
                     <div class="upload-hint">支持格式：PLY / PCD / TXT / XYZ / OBJ</div>
                 </div>
                 <input type="file" id="fileInput" accept=".ply,.pcd,.txt,.xyz,.obj,.PLY,.PCD">
+                
+                <div style="margin-top: 18px; margin-bottom: 8px;">
+                    <label for="modelSelect" style="color: var(--text-secondary); font-size: 14px; margin-right: 10px;">选择修复模型：</label>
+                    <select id="modelSelect" name="model_type" style="padding: 9px 16px; border-radius: 24px; border: 1px solid var(--border-color); background: var(--bg-tertiary); color: var(--text-primary); font-size: 14px; cursor: pointer; transition: var(--transition-base);">
+                        <option value="pointr">PoinTr (推荐)</option>
+                        <option value="pfnet">PF-Net</option>
+                    </select>
+                </div>
+                
                 <button class="btn" id="uploadBtn" disabled>上传并开始修复</button>
                 
                 <div id="statusArea" class="status-info">
@@ -914,6 +923,7 @@ uploadBtn.onclick = async () => {
         // 上传到后端
         const formData = new FormData();
         formData.append('file', selectedFile);
+        formData.append('model_type', document.getElementById('modelSelect').value);
 
         fetch('/upload', { method: 'POST', body: formData })
             .then(res => res.json())

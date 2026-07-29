@@ -1,4 +1,4 @@
-# Python
+# ==================== Python ====================
 __pycache__/
 *.py[cod]
 *$py.class
@@ -7,46 +7,91 @@ __pycache__/
 env/
 venv/
 ENV/
+.venv/
 *.egg-info/
 dist/
 build/
+pip-wheel-metadata/
 
-# PyTorch - 预训练模型太大，不上传
+# ==================== PyTorch 模型权重 & 检查点 ====================
 *.pth
 *.pt
+*.pth.tar
+*.ckpt
 ckpts/
+Checkpoint/
+checkpoints/
+weights/
 
-# 数据文件
+# ==================== 数据文件（点云 & 数据集） ====================
 *.ply
 *.xyz
 *.pcd
+*.las
+*.laz
+*.bin
+*.h5
+*.hdf5
+*.mat
+*.csv
+*.json.bak
+dataset/
+datasets/
+data/
+data/
+ShapeNet*/
+Completion3D*/
+PCN*/
+KITTI*/
 
-# 上传和处理的文件
+# ==================== 项目生成目录 ====================
 uploads/
 processed/
 user_data/
+outputs/
+results/
+temp/
+tmp/
 
-# 临时文件
+# ==================== 临时 & 日志 ====================
 *.tmp
 *.log
 *.swp
 *.bak
+*.txt.bak
+*~
 
-# IDE
-.vs/
-.vscode/
+# ==================== IDE & 编辑器 ====================
 .idea/
+.vscode/
+.vs/
 *.sln
-*.slnx
+*.suo
+*.user
+*.pdb
+*.ilk
 
-# macOS
+# ==================== 操作系统 ====================
 .DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
 
-# 其他
-*.egg
-dist/
-build/
+# ==================== Jupyter ====================
+.ipynb_checkpoints
 
-# PoinTr 子模块
+# ==================== PoinTr 子仓库（不追踪，独立管理） ====================
 PoinTr/.git
+PoinTr/data/
+PoinTr/ckpts/
+PoinTr/fig/
+
+# ==================== PF-Net 子仓库 ====================
+PF-Net-Point-Fractal-Network-master/Checkpoint/
+PF-Net-Point-Fractal-Network-master/dataset/
+PF-Net-Point-Fractal-Network-master/**/*.txt
+
+# ==================== Pointnet2 子仓库 ====================
 Pointnet2_PyTorch/.git
+Pointnet2_PyTorch/pointnet2/data/

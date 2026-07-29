@@ -219,19 +219,18 @@ def run_point_completion(points, target_points=None):
                 coarse_points, fine_points = ret
                 if isinstance(fine_points, tuple):
                     fine_points = fine_points[0]
-                # 先尝试用 NumPy，如果失败用 PyTorch 方法
                 try:
                     completed = fine_points.squeeze(0).cpu().numpy()
-                except RuntimeError:
+                except Exception as np_error:
+                    print(f"numpy() 失败，尝试 tolist(): {np_error}")
                     completed = fine_points.squeeze(0).cpu().tolist()
-                    import numpy as np
                     completed = np.array(completed)
             else:
                 try:
                     completed = ret.squeeze(0).cpu().numpy()
-                except RuntimeError:
+                except Exception as np_error:
+                    print(f"numpy() 失败，尝试 tolist(): {np_error}")
                     completed = ret.squeeze(0).cpu().tolist()
-                    import numpy as np
                     completed = np.array(completed)
 
             completed = postprocess_points(completed, scale, center)

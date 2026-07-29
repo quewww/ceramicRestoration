@@ -1,4 +1,5 @@
 from flask import Flask, render_template, request, jsonify, send_file, session, redirect, url_for
+from flask_cors import CORS
 import os
 import uuid
 import time
@@ -6,15 +7,21 @@ import json
 import subprocess
 import shutil
 import random
+import sys
+import io
 import numpy as np
 import open3d as o3d
 from datetime import timedelta
+from contextlib import redirect_stdout
 
 from config import *
 from pointcloud_utils import read_point_cloud, write_point_cloud, downsample_point_cloud, convert_to_ply, count_points, estimate_chamfer_distance
 from enhanced_point_completion import repair_point_cloud, enhance_point_cloud
+from pointr_inference_pipeline import point_cloud_completion_pipeline
+from pfnet_inference import pfnet_completion
 
 app = Flask(__name__)
+CORS(app, resources={r"/*": {"origins": "*"}})
 app.secret_key = 'your-secret-key-here'
 app.permanent_session_lifetime = timedelta(days=7)
 
@@ -43,21 +50,27 @@ def allowed_file(filename):
 
 
 def validate_file(file):
-    # 只检查文件格式，不检查 content_length（因为 Flask 可能读不到）
+    print(f"[上传接口] validate_file 开始，文件名: {file.filename}")
+    
     if not allowed_file(file.filename):
+        print(f"[上传接口] 文件格式验证失败，扩展名: {file.filename.rsplit('.', 1)[1].lower() if '.' in file.filename else '无'}")
         return False, '不支持的文件格式，请上传 .ply/.pcd/.txt/.xyz/.obj 文件'
 
-    # 尝试读取文件内容判断是否为空
     file.seek(0, os.SEEK_END)
     size = file.tell()
     file.seek(0)
 
+    print(f"[上传接口] 文件大小: {size} bytes")
+
     if size == 0:
+        print(f"[上传接口] 文件为空")
         return False, '空文件，无法上传'
 
     if size > app.config['MAX_CONTENT_LENGTH']:
+        print(f"[上传接口] 文件大小超过限制")
         return False, f'文件大小超过限制 (100MB)'
 
+    print(f"[上传接口] 文件验证通过")
     return True, ''
 
 def process_point_cloud(filepath):
@@ -83,70 +96,140 @@ def simulate_diffusion_model(filepath):
     return result
 
 
-def run_point_completion(input_path, output_dir):
+def run_point_completion(input_path, output_dir, model_type='pointr'):
     """
-    调用 PoinTr 模型进行点云补全
+    调用点云补全模型，并进行泊松重建生成光滑网格
 
     Args:
         input_path: 输入点云文件路径
         output_dir: 输出目录
+        model_type: 模型类型 ('pointr' 或 'pfnet')
 
     Returns:
         dict: {
             'success': bool,
             'output_path': str,
+            'mesh_path': str,
             'time_elapsed': float,
-            'chamfer_distance': float
+            'chamfer_distance': float,
+            'model_used': str
         }
     """
     result = {
         'success': False,
         'output_path': '',
+        'mesh_path': '',
         'time_elapsed': 0,
-        'chamfer_distance': None
+        'chamfer_distance': None,
+        'model_used': model_type
     }
-
-    if not os.path.exists(CKPT_PATH):
-        print(f"预训练模型不存在: {CKPT_PATH}")
-        raise Exception("预训练模型文件不存在")
 
     start_time = time.time()
 
     try:
         os.makedirs(output_dir, exist_ok=True)
 
-        points, colors = read_point_cloud(input_path)
-        if points is None or len(points) == 0:
-            raise ValueError("点云文件为空或无法读取")
+        import torch
+        device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        print(f"使用设备: {device}")
+        print(f"使用模型: {model_type}")
 
-        print(f"原始点数: {len(points)}")
-
-        # 使用增强版点云修复
-        completed_points = repair_point_cloud(points, MAX_POINTS)
-
-        if completed_points is None:
-            raise Exception("点云补全失败")
-
-        # 保存结果
         original_filename = os.path.basename(input_path)
         name_without_ext = os.path.splitext(original_filename)[0]
         processed_filename = f"{name_without_ext}_completed.ply"
         output_path = os.path.join(output_dir, processed_filename)
 
-        # 使用 open3d 保存
-        import open3d as o3d
-        pcd = o3d.geometry.PointCloud()
-        pcd.points = o3d.utility.Vector3dVector(completed_points)
-        o3d.io.write_point_cloud(output_path, pcd)
+        if model_type == 'pointr':
+            # PoinTr模型推理
+            if not os.path.exists(CKPT_PATH):
+                print(f"预训练模型不存在: {CKPT_PATH}")
+                raise Exception("PoinTr预训练模型文件不存在")
+
+            completed_points = point_cloud_completion_pipeline(
+                input_ply_path=input_path,
+                output_ply_path=output_path,
+                device=device
+            )
+
+            if completed_points is None:
+                raise Exception("PoinTr点云补全失败")
+
+        elif model_type == 'pfnet':
+            # PF-Net模型推理
+            PFNET_CKPT = 'PoinTr/ckpts/point_netG90.pth'
+            if not os.path.exists(PFNET_CKPT):
+                print(f"PF-Net预训练模型不存在: {PFNET_CKPT}")
+                raise Exception("PF-Net预训练模型文件不存在")
+
+            completed_points = pfnet_completion(
+                input_ply_path=input_path,
+                output_ply_path=output_path,
+                device=device
+            )
+
+            if completed_points is None:
+                raise Exception("PF-Net点云补全失败")
+
+        else:
+            raise Exception(f"未知的模型类型: {model_type}")
 
         result['output_path'] = output_path
         result['success'] = True
 
+        # 泊松重建生成光滑网格（容错处理，不阻断流程）
         try:
-            result['chamfer_distance'] = estimate_chamfer_distance(input_path, output_path)
+            print(f"[泊松重建] 开始生成光滑网格...")
+            pcd = o3d.io.read_point_cloud(output_path)
+            
+            if len(pcd.points) < 100:
+                print(f"[泊松重建] 警告: 点云点数过少({len(pcd.points)}点)，跳过重建")
+            else:
+                # 估计法向量（泊松重建需要法向量）
+                normals_ok = False
+                try:
+                    pcd.estimate_normals(
+                        o3d.geometry.KDTreeSearchParamKNN(knn=30)
+                    )
+                    normals_ok = True
+                    print(f"[泊松重建] 法向量估计完成")
+                except Exception as normal_e:
+                    print(f"[泊松重建] 警告: 法向量估计失败({normal_e})，跳过重建")
+                    import traceback
+                    traceback.print_exc()
+                
+                if normals_ok:
+                    # 执行泊松重建
+                    try:
+                        mesh, densities = o3d.geometry.TriangleMesh.create_from_point_cloud_poisson(
+                            pcd,
+                            depth=9
+                        )
+                        
+                        # 清理网格
+                        mesh.remove_degenerate_triangles()
+                        mesh.remove_duplicated_triangles()
+                        mesh.remove_unreferenced_vertices()
+                        
+                        # 保存网格
+                        mesh_filename = f"{name_without_ext}_mesh.obj"
+                        mesh_path = os.path.join(output_dir, mesh_filename)
+                        o3d.io.write_triangle_mesh(mesh_path, mesh)
+                        
+                        result['mesh_path'] = mesh_path
+                        print(f"[泊松重建] 完成，网格顶点数: {len(mesh.vertices)}, 三角形数: {len(mesh.triangles)}")
+                        print(f"[泊松重建] 网格保存路径: {mesh_path}")
+                        
+                    except Exception as poisson_e:
+                        print(f"[泊松重建] 警告: 泊松重建失败({poisson_e})，不影响点云输出")
+                        result['mesh_path'] = ''
+                        import traceback
+                        traceback.print_exc()
+                
         except Exception as e:
-            print(f"Chamfer Distance 计算失败: {e}")
-            result['chamfer_distance'] = 0.05
+            print(f"[泊松重建] 警告: 重建流程异常({e})，不影响点云输出")
+            import traceback
+            traceback.print_exc()
+            result['mesh_path'] = ''
 
         result['time_elapsed'] = time.time() - start_time
         print(f"推理完成，耗时: {result['time_elapsed']:.2f}秒")
@@ -291,19 +374,42 @@ def project_detail(project_id):
 def upload_file():
     """接收上传的点云文件"""
     try:
+        # 获取模型类型参数，默认为pointr
+        model_type = request.form.get('model_type', 'pointr')
+        if model_type not in ['pointr', 'pfnet']:
+            model_type = 'pointr'
+        print(f"[上传接口] 请求模型类型: {model_type}")
+        
+        print("\n" + "=" * 80)
+        print("========== [上传接口] 请求到达 ==========")
+        print(f"[上传接口] 请求方法: {request.method}")
+        print(f"[上传接口] 请求路径: {request.path}")
+        print(f"[上传接口] Content-Type: {request.content_type}")
+        print(f"[上传接口] Content-Length: {request.content_length}")
+        print(f"[上传接口] 是否有文件: {'file' in request.files}")
+        print(f"[上传接口] files数量: {len(request.files) if request.files else 0}")
+        print(f"[上传接口] 模型类型: {model_type}")
+        print("=" * 80)
+        
         if 'file' not in request.files:
+            print("[上传接口] 错误: 请求中没有文件")
             return jsonify({'error': '没有文件'}), 400
 
         file = request.files['file']
         if file.filename == '':
+            print("[上传接口] 错误: 未选择文件")
             return jsonify({'error': '未选择文件'}), 400
 
-        print(f"接收到文件: {file.filename}")
-        print(f"文件类型: {file.content_type}")
-        print(f"Content-Length: {file.content_length}")
+        print("\n" + "="*80)
+        print("========== [上传接口] 文件接收入口 ==========")
+        print(f"[上传接口] 接收文件名: {file.filename}")
+        print(f"[上传接口] 文件类型: {file.content_type}")
+        print(f"[上传接口] Content-Length: {file.content_length}")
+        print("="*80)
 
         valid, message = validate_file(file)
         if not valid:
+            print(f"[上传接口] 文件验证失败: {message}")
             return jsonify({'error': message}), 400
 
         original_filename = file.filename
@@ -311,42 +417,87 @@ def upload_file():
         new_filename = f"{uuid.uuid4().hex}.{ext}"
         filepath = os.path.join(app.config['UPLOAD_FOLDER'], new_filename)
 
+        print(f"\n[上传接口] 准备保存文件:")
+        print(f"[上传接口]   原始文件名: {original_filename}")
+        print(f"[上传接口]   存储文件名: {new_filename}")
+        print(f"[上传接口]   存储路径: {filepath}")
+
         try:
-            # 先确保文件指针在开头
             file.seek(0)
             file.save(filepath)
-            print(f"文件已保存到: {filepath}")
+            print(f"[上传接口] 文件保存成功")
 
-            # 检查保存后的文件大小
             file_size = os.path.getsize(filepath)
-            print(f"文件大小: {file_size} bytes")
+            print(f"[上传接口] 文件大小: {file_size} bytes")
 
             if file_size == 0:
-                os.remove(filepath)  # 删除空文件
+                os.remove(filepath)
+                print(f"[上传接口] 错误: 上传的文件为空，已删除")
                 return jsonify({'error': '上传的文件为空'}), 400
 
+            print(f"[上传接口] 文件接收流程完成")
+
         except Exception as e:
+            print(f"[上传接口] 错误: 文件保存失败")
+            import traceback
+            traceback.print_exc()
             return jsonify({'error': f'文件保存失败: {str(e)}'}), 500
 
         try:
+            print(f"\n[上传接口] 进入点云预处理函数...")
             point_cloud_result = process_point_cloud(filepath)
+            print(f"[上传接口] 点云预处理完成")
         except Exception as e:
+            print(f"[上传接口] 错误: 点云预处理失败")
+            import traceback
+            traceback.print_exc()
             return jsonify({'error': f'点云处理失败: {str(e)}'}), 500
 
+        mesh_file_name = ''
+        mesh_file_url = ''
+        
         try:
-            result = run_point_completion(filepath, app.config['PROCESSED_FOLDER'])
+            print(f"\n[上传接口] ========== 即将启动推理 ==========")
+            print(f"[上传接口] 输入文件: {filepath}")
+            print(f"[上传接口] 输出目录: {app.config['PROCESSED_FOLDER']}")
+            print(f"[上传接口] 使用模型: {model_type}")
+            
+            result = run_point_completion(filepath, app.config['PROCESSED_FOLDER'], model_type=model_type)
+            
             if result['success']:
+                print(f"\n[上传接口] ========== 推理函数执行完毕 ==========")
+                print(f"[上传接口] 输出文件路径: {result['output_path']}")
+                
+                # 根据实际使用的模型设置model_used名称
+                model_display_name = 'PoinTr' if result.get('model_used') == 'pointr' else 'PF-Net'
+                
                 diffusion_result = {
                     'fixed_points_count': count_points(result['output_path']),
                     'repair_accuracy': max(0, 1 - result['chamfer_distance']) if result['chamfer_distance'] is not None else 0.9,
                     'repair_time': result['time_elapsed'],
-                    'model_used': 'PoinTr'
+                    'model_used': model_display_name
                 }
                 processed_filename = os.path.basename(result['output_path'])
+                processed_file_url = f"/processed/{processed_filename}"
+                
+                # 获取网格文件信息
+                if result.get('mesh_path') and os.path.exists(result['mesh_path']):
+                    mesh_file_name = os.path.basename(result['mesh_path'])
+                    mesh_file_url = f"/processed/{mesh_file_name}"
+                    print(f"[上传接口] 网格文件名: {mesh_file_name}")
+                    print(f"[上传接口] 网格文件URL: {mesh_file_url}")
+                
+                print(f"[上传接口] 输出文件名: {processed_filename}")
+                print(f"[上传接口] 输出文件URL: {processed_file_url}")
+                print(f"[上传接口] 输出点数: {diffusion_result['fixed_points_count']}")
+                print(f"[上传接口] 推理耗时: {diffusion_result['repair_time']:.2f}秒")
             else:
-                raise Exception("PoinTr 推理失败")
+                raise Exception(f"{model_type} 推理失败")
         except Exception as e:
-            print(f"PoinTr 调用失败: {e}，使用内置点云补全算法")
+            print(f"\n[上传接口] 错误: {model_type} 调用失败")
+            import traceback
+            traceback.print_exc()
+            print("[上传接口] 使用内置点云补全算法作为 fallback")
             diffusion_result = simulate_diffusion_model(filepath)
 
             try:
@@ -354,48 +505,78 @@ def upload_file():
                 if points is None or len(points) == 0:
                     raise ValueError("读取到空点云")
 
-                print(f"原始点数: {len(points)}")
+                print(f"[上传接口] 备用修复 - 原始点数: {len(points)}")
 
-                completed_points = simple_point_cloud_completion(points, 5000)  # 改为5000点
-                enhanced_points = enhance_point_cloud(completed_points)
+                completed_points = repair_point_cloud(points)
 
-                # 强制使用 .ply 格式
                 processed_filename = f"processed_{new_filename.rsplit('.', 1)[0]}.ply"
                 processed_filepath = os.path.join(app.config['PROCESSED_FOLDER'], processed_filename)
 
                 pcd = o3d.geometry.PointCloud()
-                pcd.points = o3d.utility.Vector3dVector(enhanced_points)
+                pcd.points = o3d.utility.Vector3dVector(completed_points)
+                
+                if colors is not None and len(colors) > 0:
+                    if len(colors) >= len(completed_points):
+                        pcd.colors = o3d.utility.Vector3dVector(colors[:len(completed_points)])
+                    else:
+                        repeated_colors = np.tile(colors, (len(completed_points) // len(colors) + 1, 1))[:len(completed_points)]
+                        pcd.colors = o3d.utility.Vector3dVector(repeated_colors)
+                
                 o3d.io.write_point_cloud(processed_filepath, pcd)
 
-                print(f"点云补全完成，输出文件: {processed_filepath}")
-                print(f"输出点数: {len(enhanced_points)}")
+                processed_file_url = f"/processed/{processed_filename}"
+                print(f"[上传接口] 备用修复完成")
+                print(f"[上传接口] 输出文件路径: {processed_filepath}")
+                print(f"[上传接口] 输出文件URL: {processed_file_url}")
+                print(f"[上传接口] 输出点数: {len(completed_points)}")
 
-                diffusion_result['fixed_points_count'] = len(enhanced_points)
-                diffusion_result['model_used'] = '内置补全算法'
+                diffusion_result['fixed_points_count'] = len(completed_points)
+                diffusion_result['model_used'] = '增强版点云修复'
 
             except Exception as inner_e:
-                print(f"点云处理失败: {inner_e}，生成模拟数据")
-                # 生成 PLY 格式的模拟数据
+                print(f"\n[上传接口] 错误: 备用点云修复失败")
+                import traceback
+                traceback.print_exc()
+                print("[上传接口] 生成模拟数据作为 fallback")
+                
                 processed_filename = f"processed_{new_filename.rsplit('.', 1)[0]}.ply"
                 processed_filepath = os.path.join(app.config['PROCESSED_FOLDER'], processed_filename)
+                processed_file_url = f"/processed/{processed_filename}"
 
-                # 生成随机点云
                 points = np.random.randn(5000, 3) * 0.5
                 pcd = o3d.geometry.PointCloud()
                 pcd.points = o3d.utility.Vector3dVector(points)
                 o3d.io.write_point_cloud(processed_filepath, pcd)
 
+                print(f"[上传接口] 模拟数据生成完成")
+                print(f"[上传接口] 输出文件路径: {processed_filepath}")
+                print(f"[上传接口] 输出文件URL: {processed_file_url}")
+
+        print("\n" + "="*80)
+        print("[上传接口] 返回响应给前端")
+        print(f"[上传接口] processed_file_url: {processed_file_url}")
+        print(f"[上传接口] mesh_file_url: {mesh_file_url}")
+        print(f"[上传接口] model_used: {diffusion_result.get('model_used', 'unknown')}")
+        print("="*80 + "\n")
+
         return jsonify({
             'success': True,
-            'message': '文件上传成功，已完成点云处理和扩散模型修复',
+            'message': '文件上传成功，已完成点云处理和修复',
             'filename': new_filename,
             'original_name': original_filename,
             'processed_filename': processed_filename,
+            'processed_file_url': processed_file_url,
+            'mesh_file_name': mesh_file_name,
+            'mesh_file_url': mesh_file_url,
             'point_cloud_result': point_cloud_result,
-            'diffusion_result': diffusion_result
+            'diffusion_result': diffusion_result,
+            'model_used': diffusion_result.get('model_used', 'unknown')
         })
 
     except Exception as e:
+        print(f"\n[上传接口] 严重错误: 处理过程中出错")
+        import traceback
+        traceback.print_exc()
         return jsonify({'error': f'处理过程中出错: {str(e)}'}), 500
 
 
@@ -451,36 +632,113 @@ def export_model():
             os.unlink(temp_filename)
 
 
+def create_warmup_point_cloud():
+    """创建用于模型预热的高质量残缺点云（模拟ShapeNet训练数据中的物体形状）"""
+    np.random.seed(42)
+    
+    num_points = 5000
+    
+    theta = np.random.uniform(0, 2 * np.pi, num_points)
+    height = np.random.uniform(0, 2.0, num_points)
+    radius = 0.3 + 0.2 * np.sin(height * 3) + np.random.normal(0, 0.03, num_points)
+    
+    x = radius * np.cos(theta)
+    y = height
+    z = radius * np.sin(theta)
+    
+    points = np.stack([x, y, z], axis=1).astype(np.float32)
+    
+    mask = height > 0.5
+    points = points[mask]
+    
+    noise = np.random.normal(0, 0.01, points.shape)
+    points = points + noise
+    
+    return points
+
+
 def warmup_model():
-    """服务启动时预热模型"""
-    print("=" * 70)
-    print("正在预热 PoinTr 模型...")
-    print("=" * 70)
+    """服务启动时预热模型（PoinTr + PF-Net双模型预热）"""
+    import torch
+    import tempfile
+    
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    test_points = create_warmup_point_cloud()
+    
+    # 创建临时测试文件
+    input_ply = os.path.join(tempfile.gettempdir(), 'warmup_input.ply')
+    output_ply_pointr = os.path.join(tempfile.gettempdir(), 'warmup_pointr_output.ply')
+    output_ply_pfnet = os.path.join(tempfile.gettempdir(), 'warmup_pfnet_output.ply')
+    
     try:
-        # 直接在启动时加载模型
-        from point_cloud_completion import load_model
-        model = load_model()
+        # 准备测试点云文件
+        pcd = o3d.geometry.PointCloud()
+        pcd.points = o3d.utility.Vector3dVector(test_points)
+        o3d.io.write_point_cloud(input_ply, pcd)
         
-        if model is None:
-            print("\nWARNING: 模型加载失败，后续请求将使用内置补全算法")
-            return
+        # 预热PoinTr模型
+        print("【模型预热开始 - PoinTr】")
+        try:
+            from pointr_inference_pipeline import point_cloud_completion_pipeline
+            with redirect_stdout(io.StringIO()):
+                result = point_cloud_completion_pipeline(
+                    input_ply_path=input_ply,
+                    output_ply_path=output_ply_pointr,
+                    device=device
+                )
+            print("【模型预热完成 - PoinTr】")
+        except Exception as e:
+            print(f"【模型预热失败 - PoinTr】: {e}")
         
-        # 做一次推理来预热模型
-        print("\n进行一次推理预热...")
-        test_points = np.random.randn(500, 3).astype(np.float32)
+        # 预热PF-Net模型
+        print("【模型预热开始 - PF-Net】")
+        try:
+            with redirect_stdout(io.StringIO()):
+                result = pfnet_completion(
+                    input_ply_path=input_ply,
+                    output_ply_path=output_ply_pfnet,
+                    device=device
+                )
+            print("【模型预热完成 - PF-Net】")
+        except Exception as e:
+            print(f"【模型预热失败 - PF-Net】: {e}")
         
-        from point_cloud_completion import run_point_completion
-        result = run_point_completion(test_points)
+        # 清理临时文件
+        for temp_file in [input_ply, output_ply_pointr, output_ply_pfnet]:
+            if os.path.exists(temp_file):
+                try:
+                    os.unlink(temp_file)
+                except:
+                    pass
         
-        if result is not None:
-            print(f"\n预热完成，输出点数: {len(result)}")
-        else:
-            print("\nWARNING: 预热推理失败")
+        # 清理CUDA缓存
+        if torch.cuda.is_available():
+            try:
+                torch.cuda.empty_cache()
+            except:
+                pass
+        
+        print("【模型预热完成 - 全部】")
             
     except Exception as e:
-        print(f"\nWARNING: 模型预热时出错: {e}")
+        print(f"【模型预热异常】: {e}")
         import traceback
         traceback.print_exc()
+        
+        # 清理临时文件
+        for temp_file in [input_ply, output_ply_pointr, output_ply_pfnet]:
+            if os.path.exists(temp_file):
+                try:
+                    os.unlink(temp_file)
+                except:
+                    pass
+        
+        # 清理CUDA缓存
+        if torch.cuda.is_available():
+            try:
+                torch.cuda.empty_cache()
+            except:
+                pass
 
 # 修改文件末尾的启动代码
 if __name__ == '__main__':
