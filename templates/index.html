@@ -551,6 +551,7 @@
 <script src="https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js"></script>
 <script src="https://unpkg.com/three@0.160.0/examples/jsm/renderers/CSS2DRenderer.js"></script>
 <script src="https://unpkg.com/three@0.160.0/examples/jsm/loaders/PLYLoader.js"></script>
+<script src="https://unpkg.com/three@0.160.0/examples/jsm/loaders/OBJLoader.js"></script>
 </head>
 <body>
     <nav class="navbar">
@@ -587,6 +588,17 @@
                     <select id="modelSelect" name="model_type" style="padding: 9px 16px; border-radius: 24px; border: 1px solid var(--border-color); background: var(--bg-tertiary); color: var(--text-primary); font-size: 14px; cursor: pointer; transition: var(--transition-base);">
                         <option value="pointr">PoinTr (推荐)</option>
                         <option value="pfnet">PF-Net</option>
+                    </select>
+                </div>
+
+                <div style="margin-top: 8px; margin-bottom: 8px;">
+                    <label for="reconstructionSelect" style="color: var(--text-secondary); font-size: 14px; margin-right: 10px;">重建方式：</label>
+                    <select id="reconstructionSelect" name="reconstruction_mode" style="padding: 9px 16px; border-radius: 24px; border: 1px solid var(--border-color); background: var(--bg-tertiary); color: var(--text-primary); font-size: 14px; cursor: pointer; transition: var(--transition-base);">
+                        <option value="axis_auto" selected>轴对称（自动检测）</option>
+                        <option value="poisson">Poisson 网格</option>
+                        <option value="point_only">仅点云预览</option>
+                        <option value="axis_force">轴对称（强制）</option>
+                        <option value="axis_off">关闭轴对称</option>
                     </select>
                 </div>
                 
@@ -688,6 +700,7 @@ html
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { PLYLoader } from 'three/addons/loaders/PLYLoader.js';
+import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
 
 const container = document.getElementById('canvas-container');
 const fileInput = document.getElementById('fileInput');
@@ -776,53 +789,123 @@ let originalMesh = null;
 let repairedMesh = null;
 let currentMode = "fixed";
 
-// ========== 核心函数：将 PLY 加载为实体网格 ==========
+// ========== 核心函数：将 PLY 加载为 Group（含 Mesh + Points）==========
 function loadPLYAsMesh(url, color, onSuccess, onError) {
     const loader = new PLYLoader();
     loader.load(url, (geometry) => {
-        // 计算法向量（让光照效果正确）
-        geometry.computeVertexNormals();
+        try {
+            // 计算法向量（用于网格光照）
+            geometry.computeVertexNormals();
 
-        // 创建材质（标准网格材质，不是 PointsMaterial）
-        const material = new THREE.MeshStandardMaterial({
-            color: color,
-            roughness: 0.4,
-            metalness: 0.3,
-            flatShading: false,
-            side: THREE.DoubleSide  // 双面渲染，防止背面消失
-        });
+            // ---------- 创建 Mesh ----------
+            const material = new THREE.MeshStandardMaterial({
+                color: color,
+                roughness: 0.4,
+                metalness: 0.3,
+                flatShading: false,
+                side: THREE.DoubleSide
+            });
+            const mesh = new THREE.Mesh(geometry, material);
+            mesh.castShadow = true;
+            mesh.receiveShadow = false;
 
-        const mesh = new THREE.Mesh(geometry, material);
-        mesh.castShadow = true;
-        mesh.receiveShadow = false;
+            // ---------- 创建 Points ----------
+            geometry.computeBoundingBox();
+            const box = geometry.boundingBox;
+            const size = Math.max(box.max.x - box.min.x, box.max.y - box.min.y, box.max.z - box.min.z);
+            const pointSize = Math.max(0.002 * (1.0), Math.min(0.02, size * 0.02));
+            const pointsMaterial = new THREE.PointsMaterial({
+                color: color,
+                size: pointSize,
+                sizeAttenuation: true,
+                opacity: 1.0,
+                transparent: false
+            });
+            const points = new THREE.Points(geometry, pointsMaterial);
+            points.visible = false;
 
-        // 计算并居中模型
-        geometry.computeBoundingBox();
-        const box = geometry.boundingBox;
-        const center = new THREE.Vector3(
-            (box.min.x + box.max.x) / 2,
-            (box.min.y + box.max.y) / 2,
-            (box.min.z + box.max.z) / 2
-        );
-        mesh.position.sub(center);
+            // ---------- 组装为 Group ----------
+            const group = new THREE.Group();
+            group.add(mesh);
+            group.add(points);
 
-        // 调整相机
-        const size = Math.max(
-            box.max.x - box.min.x,
-            box.max.y - box.min.y,
-            box.max.z - box.min.z
-        );
-        const distance = size * 1.5;
-        camera.position.set(distance * 0.8, distance * 0.6, distance);
-        controls.target.set(0, 0, 0);
-        controls.update();
+            // 居中与相机调整
+            const center = new THREE.Vector3(
+                (box.min.x + box.max.x) / 2,
+                (box.min.y + box.max.y) / 2,
+                (box.min.z + box.max.z) / 2
+            );
+            group.position.sub(center);
 
-        // 更新统计面板
-        updateStatsPanel(geometry);
+            // 相机调整
+            const distance = size * 1.5;
+            camera.position.set(distance * 0.8, distance * 0.6, distance);
+            controls.target.set(0, 0, 0);
+            controls.update();
 
-        if (onSuccess) onSuccess(mesh);
+            // 更新统计面板
+            updateStatsPanel(geometry);
+
+            // 返回 group
+            if (onSuccess) onSuccess(group);
+        } catch (err) {
+            console.error("PLY 解析/渲染错误:", err);
+            if (onError) onError(err);
+        }
     }, undefined, (error) => {
         console.error("PLY 加载失败:", error);
+        if (onError) onError(error);
+    });
+}
+
+// ========== OBJ 网格加载函数 ==========
+function loadOBJAsMesh(url, color, onSuccess, onError) {
+    const loader = new OBJLoader();
+    loader.load(url, (obj) => {
+        try {
+            // 统一材质
+            const material = new THREE.MeshStandardMaterial({
+                color: color,
+                roughness: 0.4,
+                metalness: 0.3,
+                flatShading: false,
+                side: THREE.DoubleSide
+            });
+
+            // 遍历所有子对象，应用材质 + 计算法向量
+            obj.traverse((child) => {
+                if (child instanceof THREE.Mesh) {
+                    child.material = material;
+                    child.castShadow = true;
+                    child.receiveShadow = false;
+                    if (!child.geometry.attributes.normal) {
+                        child.geometry.computeVertexNormals();
+                    }
+                }
+            });
+
+            // 计算包围盒，居中 + 相机调整
+            const box = new THREE.Box3().setFromObject(obj);
+            const size = new THREE.Vector3();
+            const center = new THREE.Vector3();
+            box.getSize(size);
+            box.getCenter(center);
+
+            obj.position.sub(center);
+
+            const maxDim = Math.max(size.x, size.y, size.z);
+            const distance = maxDim * 1.5;
+            camera.position.set(distance * 0.8, distance * 0.6, distance);
+            controls.target.set(0, 0, 0);
+            controls.update();
+
+            if (onSuccess) onSuccess(obj);
+        } catch (err) {
+            console.error("OBJ 解析/渲染错误:", err);
+            if (onError) onError(err);
+        }
+    }, undefined, (error) => {
+        console.error("OBJ 加载失败:", error);
         if (onError) onError(error);
     });
 }
@@ -853,26 +936,49 @@ function updateStatsPanel(geometry) {
     document.getElementById('zRange').innerText = `${minZ.toFixed(3)} ~ ${maxZ.toFixed(3)}`;
 }
 
-// 渲染模式切换（针对实体网格）
+// 渲染模式切换（针对 Group：含 Mesh 和 Points）
 function setRenderMode(mode) {
-    const meshes = [originalMesh, repairedMesh];
-    meshes.forEach(mesh => {
-        if (!mesh) return;
-        if (mode === 'wireframe') {
-            mesh.material.wireframe = true;
-        } else {
-            mesh.material.wireframe = false;
-        }
+    [originalMesh, repairedMesh].forEach(group => {
+        if (!group) return;
+        group.children.forEach(child => {
+            if (child instanceof THREE.Mesh) {
+                if (mode === 'wireframe') {
+                    child.visible = true;
+                    child.material.wireframe = true;
+                    child.material.transparent = false;
+                } else if (mode === 'solid') {
+                    child.visible = true;
+                    child.material.wireframe = false;
+                    child.material.transparent = false;
+                } else if (mode === 'point') {
+                    child.visible = false;
+                }
+            } else if (child instanceof THREE.Points) {
+                if (mode === 'point') {
+                    child.visible = true;
+                } else {
+                    child.visible = false;
+                }
+            }
+        });
     });
 }
 
-// 对比模式混合（透明度混合）
+// 对比模式混合（透明度混合，作用于 Group 的 Mesh children）
 function applyMixRatio(ratio) {
     if (!originalMesh || !repairedMesh) return;
-    originalMesh.material.transparent = true;
-    repairedMesh.material.transparent = true;
-    originalMesh.material.opacity = 1 - ratio;
-    repairedMesh.material.opacity = ratio;
+    [originalMesh, repairedMesh].forEach(group => {
+        group.children.forEach(child => {
+            if (child instanceof THREE.Mesh) {
+                child.material.transparent = true;
+            }
+        });
+    });
+    // original 透明度 1-ratio，repaired 透明度 ratio
+    const origMesh = originalMesh.children.find(c => c instanceof THREE.Mesh);
+    const reprMesh = repairedMesh.children.find(c => c instanceof THREE.Mesh);
+    if (origMesh) origMesh.material.opacity = 1 - ratio;
+    if (reprMesh) reprMesh.material.opacity = ratio;
 }
 
 // ========== UI 事件绑定 ==========
@@ -924,6 +1030,7 @@ uploadBtn.onclick = async () => {
         const formData = new FormData();
         formData.append('file', selectedFile);
         formData.append('model_type', document.getElementById('modelSelect').value);
+        formData.append('reconstruction_mode', document.getElementById('reconstructionSelect').value);
 
         fetch('/upload', { method: 'POST', body: formData })
             .then(res => res.json())
@@ -933,7 +1040,16 @@ uploadBtn.onclick = async () => {
                 const repairedPath = `/processed/${data.processed_filename}`;
                 console.log("修复后文件路径:", repairedPath);
 
-                // 加载修复后的模型（绿色）
+                // 显示轴对称检测信息
+                const axisInfo = data.axisymmetry_info || {};
+                let statusMsg = "✅ 修复完成！";
+                if (axisInfo.detected) {
+                    statusMsg += ` | 检测到轴对称 (score=${axisInfo.score.toFixed(4)})`;
+                } else if (data.reconstruction_mode === 'axis_auto') {
+                    statusMsg += ` | 非轴对称 (score=${axisInfo.score.toFixed(4)})`;
+                }
+
+                // 加载修复后的点云
                 loadPLYAsMesh(repairedPath, 0x66ff66, (mesh) => {
                     repairedMesh = mesh;
                     scene.add(repairedMesh);
@@ -951,8 +1067,31 @@ uploadBtn.onclick = async () => {
                         applyMixRatio(0.5);
                     }
 
-                    statusArea.textContent = `✅ 修复完成！`;
-                    statusArea.className = "status-info success";
+                    // 加载网格（如果有）— 仅提示，不自动加载
+                    if (data.mesh_file_url && data.mesh_file_name) {
+                        statusMsg += ` | 已生成网格`;
+                        statusArea.innerHTML = statusMsg + ` <a href="javascript:void(0)" id="loadMeshLink" style="color: #4fc3f7; text-decoration: underline; margin-left: 6px;">[点击加载网格]</a>`;
+                        statusArea.className = "status-info success";
+                        document.getElementById('loadMeshLink').addEventListener('click', () => {
+                            statusArea.textContent = statusMsg + ' | 正在加载网格...';
+                            loadOBJAsMesh(data.mesh_file_url, 0x66ff66, (meshGroup) => {
+                                if (repairedMesh) scene.remove(repairedMesh);
+                                repairedMesh = meshGroup;
+                                scene.add(repairedMesh);
+                                originalMesh.visible = false;
+                                repairedMesh.visible = true;
+                                statusArea.textContent = statusMsg + ' | 网格已加载 ✓';
+                                statusArea.className = "status-info success";
+                            }, (err) => {
+                                console.warn("网格加载失败:", err);
+                                statusArea.textContent = statusMsg + ' | 网格加载失败';
+                                statusArea.className = "status-info error";
+                            });
+                        });
+                    } else {
+                        statusArea.textContent = statusMsg;
+                        statusArea.className = "status-info success";
+                    }
                 }, (err) => {
                     console.error("修复模型加载失败", err);
                     statusArea.textContent = "❌ 修复模型加载失败";

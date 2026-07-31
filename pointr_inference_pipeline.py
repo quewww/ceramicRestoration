@@ -5,6 +5,10 @@ import open3d as o3d
 from sklearn.cluster import DBSCAN
 import sys
 
+# 统一归一化 API（强制使用，禁止自行实现）
+from pointcloud_utils import preprocess_points as normalize_points
+from pointcloud_utils import postprocess_points as denormalize_points
+
 pointr_root = os.path.join(os.path.dirname(__file__), 'PoinTr')
 sys.path.insert(0, pointr_root)
 
@@ -85,36 +89,12 @@ def fps_python(points, num_samples):
     return points[sampled_indices]
 
 
-def normalize_points(points):
-    """包围盒中心化 + 归一化到[-1,1]（保存center和scale用于逆归一化）"""
-    min_coord = np.min(points, axis=0)
-    max_coord = np.max(points, axis=0)
-    
-    center = (min_coord + max_coord) / 2.0
-    translated = points - center
-    
-    extent = max_coord - min_coord
-    scale = np.max(extent) / 2.0
-    if scale <= 0:
-        scale = 1.0
-    normalized = translated / scale
-    
-    print(f"[预处理] 归一化完成，中心点: ({center[0]:.4f}, {center[1]:.4f}, {center[2]:.4f})")
-    print(f"[预处理] 缩放因子: {scale:.4f}")
-    print(f"[预处理] 归一后坐标范围: x=[{normalized[:,0].min():.4f}, {normalized[:,0].max():.4f}], "
-          f"y=[{normalized[:,1].min():.4f}, {normalized[:,1].max():.4f}], z=[{normalized[:,2].min():.4f}, {normalized[:,2].max():.4f}]")
-    
-    return normalized, center, scale
+# normalize_points / denormalize_points 已统一到 pointcloud_utils.py
+# 通过模块顶部 import 引入，禁止在此文件中自行实现
 
 
 # ==================== 阶段2：模型推理模块 ====================
-
-def denormalize_points(points_norm, center, scale):
-    """逆归一化：恢复原始坐标（防止点云炸开的关键步骤）"""
-    denormalized = points_norm * scale + center
-    print(f"[推理] 逆归一化完成，坐标范围: x=[{denormalized[:,0].min():.4f}, {denormalized[:,0].max():.4f}], "
-          f"y=[{denormalized[:,1].min():.4f}, {denormalized[:,1].max():.4f}], z=[{denormalized[:,2].min():.4f}, {denormalized[:,2].max():.4f}]")
-    return denormalized
+# denormalize_points 已统一到 pointcloud_utils.py
 
 
 def init_pointr_model(config_path, checkpoint_path, device='cuda'):

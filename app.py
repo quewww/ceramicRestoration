@@ -15,7 +15,7 @@ from datetime import timedelta
 from contextlib import redirect_stdout
 
 from config import *
-from pointcloud_utils import read_point_cloud, write_point_cloud, downsample_point_cloud, convert_to_ply, count_points, estimate_chamfer_distance
+from pointcloud_utils import read_point_cloud, write_point_cloud, downsample_point_cloud, convert_to_ply, count_points, estimate_chamfer_distance, detect_axisymmetry, revolve_reconstruction
 from enhanced_point_completion import repair_point_cloud, enhance_point_cloud
 from pointr_inference_pipeline import point_cloud_completion_pipeline
 from pfnet_inference import pfnet_completion
@@ -96,23 +96,227 @@ def simulate_diffusion_model(filepath):
     return result
 
 
-def run_point_completion(input_path, output_dir, model_type='pointr'):
+def _do_poisson_reconstruction(output_path, output_dir, name_without_ext, result, preview_pts=None):
     """
-    调用点云补全模型，并进行泊松重建生成光滑网格
+    执行 Poisson 泊松重建的通用函数。
+    结果写入 result['mesh_path']。
+
+    Args:
+        output_path: 点云文件路径 (.ply)
+        output_dir: 输出目录
+        name_without_ext: 文件名（不含扩展名）
+        result: 结果字典（写入 mesh_path）
+        preview_pts: (N,3) numpy 数组，已后处理的点云（可选，优先使用）
+    """
+    try:
+        print("[泊松重建] 开始生成光滑网格...")
+
+        # 优先使用已后处理的预览点云
+        if preview_pts is not None and len(preview_pts) > 100:
+            pcd = o3d.geometry.PointCloud()
+            pcd.points = o3d.utility.Vector3dVector(preview_pts.astype(np.float64))
+            print(f"[泊松重建] 使用预览点云 ({len(preview_pts)} 点)")
+        else:
+            pcd = o3d.io.read_point_cloud(output_path)
+            print(f"[泊松重建] 从文件读取点云 ({len(pcd.points)} 点)")
+
+        if len(pcd.points) < 100:
+            print(f"[泊松重建] 点数过少({len(pcd.points)})，跳过")
+            return
+
+        num_pts = len(pcd.points)
+
+        # ===== 1. 法线估计 =====
+        normals_ok = False
+        try:
+            pts_np = np.asarray(pcd.points)
+            bb_min = np.min(pts_np, axis=0)
+            bb_max = np.max(pts_np, axis=0)
+            bb_diag = np.linalg.norm(bb_max - bb_min)
+            radius = max(bb_diag * 0.01, 1e-4)
+            max_nn = min(30, num_pts - 1)
+
+            pcd.estimate_normals(
+                o3d.geometry.KDTreeSearchParamHybrid(radius=radius, max_nn=max_nn)
+            )
+            k_orient = min(30, max(10, num_pts // 200))
+            pcd.orient_normals_consistent_tangent_plane(k=k_orient)
+            normals_ok = True
+            print(f"[泊松重建] 法线估计完成 (radius={radius:.6f}, k_orient={k_orient})")
+        except Exception as e1:
+            # 回退：固定 kNN
+            try:
+                pcd.estimate_normals(o3d.geometry.KDTreeSearchParamKNN(knn=30))
+                pcd.orient_normals_consistent_tangent_plane(k=15)
+                normals_ok = True
+                print("[泊松重建] 固定knn法线估计完成")
+            except Exception as e2:
+                print(f"[泊松重建] 法线估计全部失败: {e2}")
+
+        if not normals_ok:
+            return
+
+        # ===== 2. 自适应 Poisson depth =====
+        if num_pts < 2000:
+            poisson_depth = 7
+        elif num_pts < 5000:
+            poisson_depth = 8
+        elif num_pts < 10000:
+            poisson_depth = 9
+        else:
+            poisson_depth = 10
+        print(f"[泊松重建] 使用 depth={poisson_depth}")
+
+        # ===== 3. 执行重建 =====
+        mesh = None
+        try:
+            mesh, densities = o3d.geometry.TriangleMesh.create_from_point_cloud_poisson(
+                pcd, depth=poisson_depth
+            )
+            mesh.remove_degenerate_triangles()
+            mesh.remove_duplicated_triangles()
+            mesh.remove_unreferenced_vertices()
+            print(f"[泊松重建] 重建成功: {len(mesh.vertices)} 顶点")
+
+            if len(densities) > 0:
+                density_threshold = np.percentile(np.asarray(densities), 5)
+                mesh.remove_vertices_by_mask(np.asarray(densities) < density_threshold)
+
+        except Exception as e_p:
+            print(f"[泊松重建] depth={poisson_depth} 失败: {e_p}")
+            # 回退
+            if poisson_depth > 7:
+                try:
+                    mesh, densities = o3d.geometry.TriangleMesh.create_from_point_cloud_poisson(
+                        pcd, depth=poisson_depth - 1
+                    )
+                    mesh.remove_degenerate_triangles()
+                    mesh.remove_duplicated_triangles()
+                    mesh.remove_unreferenced_vertices()
+                    print(f"[泊松重建] 回退 depth={poisson_depth-1} 成功")
+                except Exception:
+                    mesh = None
+
+            if mesh is None:
+                # Ball-Pivoting 回退
+                try:
+                    radii = [radius * 0.5, radius, radius * 2.0]
+                    mesh = o3d.geometry.TriangleMesh.create_from_point_cloud_ball_pivoting(
+                        pcd, o3d.utility.DoubleVector3d(radii)
+                    )
+                    mesh.remove_degenerate_triangles()
+                    mesh.remove_duplicated_triangles()
+                    mesh.remove_unreferenced_vertices()
+                    print("[泊松重建] Ball-Pivoting 回退成功")
+                except Exception:
+                    mesh = None
+
+        if mesh is not None and len(mesh.vertices) > 0:
+            mesh_filename = f"{name_without_ext}_mesh.obj"
+            mesh_path = os.path.join(output_dir, mesh_filename)
+            o3d.io.write_triangle_mesh(mesh_path, mesh)
+            result['mesh_path'] = mesh_path
+            result['axisymmetry_info']['mesh_generated'] = True
+            print(f"[泊松重建] 网格保存: {mesh_path}")
+        else:
+            print("[泊松重建] 所有方法均失败")
+            result['mesh_path'] = ''
+            result['axisymmetry_info']['mesh_generated'] = False
+
+    except Exception as e:
+        print(f"[泊松重建] 异常: {e}")
+        import traceback
+        traceback.print_exc()
+        result['mesh_path'] = ''
+        result['axisymmetry_info']['mesh_generated'] = False
+
+
+def _prepare_preview_pointcloud(input_path, completed_points, output_path):
+    """
+    点云后处理（点云优先策略）：
+      1. 读取原始残缺点云
+      2. 对 predicted 部分做 SOR 去噪
+      3. 合并原始点 + predicted 点（原始在前，保证 rim/边缘不丢失）
+      4. 体素下采样（voxel_size 与 bbox 大小自适应）
+      5. 轻度二次去噪
+      6. 写出用于前端预览的 .ply
+
+    Args:
+        input_path: 原始上传文件路径
+        completed_points: (N, 3) numpy 数组，模型逆归一化后的预测点
+        output_path: 输出 .ply 路径
+
+    Returns:
+        points: (M, 3) float32 后处理合并点云
+    """
+    # 1) 读取原始残缺点云
+    orig_pcd = o3d.io.read_point_cloud(input_path)
+    orig_pts = np.asarray(orig_pcd.points)
+    print(f"[点云后处理] 原始点数: {len(orig_pts)}")
+
+    # 2) 对 predicted 部分做 SOR 去噪
+    pred_pcd = o3d.geometry.PointCloud()
+    pred_pcd.points = o3d.utility.Vector3dVector(completed_points.astype(np.float32))
+    pred_pcd, ind = pred_pcd.remove_statistical_outlier(nb_neighbors=30, std_ratio=1.5)
+    pred_clean = np.asarray(pred_pcd.points)
+    removed = len(completed_points) - len(pred_clean)
+    print(f"[点云后处理] 预测点 SOR 去噪: {len(completed_points)} → {len(pred_clean)} (移除 {removed})")
+
+    # 3) 合并（原始在前）
+    combined_pts = np.vstack([orig_pts, pred_clean])
+    combined_pcd = o3d.geometry.PointCloud()
+    combined_pcd.points = o3d.utility.Vector3dVector(combined_pts.astype(np.float32))
+    print(f"[点云后处理] 合并后点数: {len(combined_pts)}")
+
+    # 4) 体素下采样（voxel_size 与 bbox 大小自适应）
+    bbox = combined_pcd.get_axis_aligned_bounding_box()
+    max_dim = max(bbox.get_extent())
+    voxel_size = max(max_dim * 0.002, 1e-5)
+    combined_ds = combined_pcd.voxel_down_sample(voxel_size=voxel_size)
+    print(f"[点云后处理] 体素下采样 (voxel_size={voxel_size:.6f}): {len(combined_pts)} → {len(combined_ds.points)}")
+
+    # 5) 轻度二次去噪
+    combined_ds, ind2 = combined_ds.remove_statistical_outlier(nb_neighbors=20, std_ratio=1.6)
+    final_pts = np.asarray(combined_ds.points)
+    print(f"[点云后处理] 最终点数: {len(final_pts)}")
+
+    # 6) 写出预览点云
+    o3d.io.write_point_cloud(output_path, combined_ds, write_ascii=False)
+    print(f"[点云后处理] 预览点云已保存: {output_path}")
+
+    return final_pts
+
+
+def run_point_completion(input_path, output_dir, model_type='pointr', reconstruction_mode='axis_auto'):
+    """
+    调用点云补全模型：始终先输出并返回「合并+清洗后的预览点云」，
+    仅在满足条件时（用户明确请求或轴对称检测通过）才生成网格化。
 
     Args:
         input_path: 输入点云文件路径
         output_dir: 输出目录
         model_type: 模型类型 ('pointr' 或 'pfnet')
+        reconstruction_mode: 重建模式
+            - 'point_only': 仅输出点云，不生成网格
+            - 'poisson': 明确请求 Poisson 网格
+            - 'axis_auto': 自动检测轴对称 → 通过则旋转重建；否则仅返回点云
+            - 'axis_force': 强制旋转重建
+            - 'axis_off': 关闭轴对称，运行 Poisson
 
     Returns:
         dict: {
             'success': bool,
-            'output_path': str,
-            'mesh_path': str,
+            'output_path': str,        # 预览用 .ply（始终有）
+            'mesh_path': str,          # 网格路径（仅当 mesh_generated=True 时有值）
             'time_elapsed': float,
             'chamfer_distance': float,
-            'model_used': str
+            'model_used': str,
+            'axisymmetry_info': {
+                'detected': bool,      # 是否检测到轴对称
+                'score': float,
+                'mode': str,
+                'mesh_generated': bool  # 是否实际生成了网格
+            }
         }
     """
     result = {
@@ -121,7 +325,13 @@ def run_point_completion(input_path, output_dir, model_type='pointr'):
         'mesh_path': '',
         'time_elapsed': 0,
         'chamfer_distance': None,
-        'model_used': model_type
+        'model_used': model_type,
+        'axisymmetry_info': {
+            'detected': False,
+            'score': 1.0,
+            'mode': reconstruction_mode,
+            'mesh_generated': False
+        }
     }
 
     start_time = time.time()
@@ -140,9 +350,7 @@ def run_point_completion(input_path, output_dir, model_type='pointr'):
         output_path = os.path.join(output_dir, processed_filename)
 
         if model_type == 'pointr':
-            # PoinTr模型推理
             if not os.path.exists(CKPT_PATH):
-                print(f"预训练模型不存在: {CKPT_PATH}")
                 raise Exception("PoinTr预训练模型文件不存在")
 
             completed_points = point_cloud_completion_pipeline(
@@ -150,90 +358,124 @@ def run_point_completion(input_path, output_dir, model_type='pointr'):
                 output_ply_path=output_path,
                 device=device
             )
-
             if completed_points is None:
                 raise Exception("PoinTr点云补全失败")
 
         elif model_type == 'pfnet':
-            # PF-Net模型推理
             PFNET_CKPT = 'PoinTr/ckpts/point_netG90.pth'
             if not os.path.exists(PFNET_CKPT):
-                print(f"PF-Net预训练模型不存在: {PFNET_CKPT}")
-                raise Exception("PF-Net预训练模型文件不存在")
+                raise Exception("PF-Net预训练模型不存在")
 
             completed_points = pfnet_completion(
                 input_ply_path=input_path,
                 output_ply_path=output_path,
                 device=device
             )
-
             if completed_points is None:
                 raise Exception("PF-Net点云补全失败")
 
         else:
             raise Exception(f"未知的模型类型: {model_type}")
 
+        # ===== 点云后处理（始终执行，生成前端预览用 .ply）=====
+        print("[点云后处理] 开始生成预览点云...")
+        preview_pts = _prepare_preview_pointcloud(input_path, completed_points, output_path)
+
         result['output_path'] = output_path
         result['success'] = True
 
-        # 泊松重建生成光滑网格（容错处理，不阻断流程）
+        # ===== 条件网格化 =====
+        should_generate_mesh = False
         try:
-            print(f"[泊松重建] 开始生成光滑网格...")
-            pcd = o3d.io.read_point_cloud(output_path)
-            
-            if len(pcd.points) < 100:
-                print(f"[泊松重建] 警告: 点云点数过少({len(pcd.points)}点)，跳过重建")
-            else:
-                # 估计法向量（泊松重建需要法向量）
-                normals_ok = False
-                try:
-                    pcd.estimate_normals(
-                        o3d.geometry.KDTreeSearchParamKNN(knn=30)
+            print(f"[重建] 重建模式: {reconstruction_mode}")
+
+            if reconstruction_mode == 'point_only':
+                print("[重建] 仅点云预览，跳过网格生成")
+
+            elif reconstruction_mode == 'poisson':
+                print("[重建] 用户明确请求 Poisson 网格")
+                should_generate_mesh = True
+                _do_poisson_reconstruction(output_path, output_dir, name_without_ext, result, preview_pts)
+
+            elif reconstruction_mode == 'axis_auto':
+                # 先检测轴对称
+                print("[重建] 自动检测轴对称...")
+                axis_det = detect_axisymmetry(preview_pts, threshold=0.12)
+                result['axisymmetry_info']['detected'] = axis_det['is_axisymmetric']
+                result['axisymmetry_info']['score'] = axis_det['score']
+                print(f"[重建] 轴对称检测: {axis_det['is_axisymmetric']} (score={axis_det['score']:.4f})")
+
+                if axis_det['is_axisymmetric']:
+                    # 检测通过 → 旋转重建
+                    print("[重建] 检测到轴对称，执行旋转轮廓重建...")
+                    should_generate_mesh = True
+                    revolve_result = revolve_reconstruction(
+                        preview_pts, axis_vector=axis_det['axis_vector'],
+                        axis_origin=axis_det['axis_origin'],
+                        n_z=128, n_theta=128,
+                        seal_bottom=True, seal_top=True
                     )
-                    normals_ok = True
-                    print(f"[泊松重建] 法向量估计完成")
-                except Exception as normal_e:
-                    print(f"[泊松重建] 警告: 法向量估计失败({normal_e})，跳过重建")
-                    import traceback
-                    traceback.print_exc()
-                
-                if normals_ok:
-                    # 执行泊松重建
-                    try:
-                        mesh, densities = o3d.geometry.TriangleMesh.create_from_point_cloud_poisson(
-                            pcd,
-                            depth=9
-                        )
-                        
-                        # 清理网格
-                        mesh.remove_degenerate_triangles()
-                        mesh.remove_duplicated_triangles()
-                        mesh.remove_unreferenced_vertices()
-                        
-                        # 保存网格
-                        mesh_filename = f"{name_without_ext}_mesh.obj"
+                    if revolve_result['success'] and revolve_result['mesh'] is not None:
+                        mesh = revolve_result['mesh']
+                        mesh_filename = f"{name_without_ext}_revolved.obj"
                         mesh_path = os.path.join(output_dir, mesh_filename)
                         o3d.io.write_triangle_mesh(mesh_path, mesh)
-                        
                         result['mesh_path'] = mesh_path
-                        print(f"[泊松重建] 完成，网格顶点数: {len(mesh.vertices)}, 三角形数: {len(mesh.triangles)}")
-                        print(f"[泊松重建] 网格保存路径: {mesh_path}")
-                        
-                    except Exception as poisson_e:
-                        print(f"[泊松重建] 警告: 泊松重建失败({poisson_e})，不影响点云输出")
-                        result['mesh_path'] = ''
-                        import traceback
-                        traceback.print_exc()
-                
+                        result['axisymmetry_info']['mesh_generated'] = True
+                        print(f"[重建] 旋转重建成功: {len(mesh.vertices)} 顶点, {len(mesh.triangles)} 三角面")
+                    else:
+                        print("[重建] 旋转重建失败，不自动回退 Poisson")
+                        should_generate_mesh = False
+                        result['axisymmetry_info']['mesh_generated'] = False
+                else:
+                    # 检测失败 → 不自动生成网格，仅返回点云
+                    print("[重建] 非轴对称，不自动生成网格（仅返回点云）")
+                    result['axisymmetry_info']['mesh_generated'] = False
+
+            elif reconstruction_mode == 'axis_force':
+                print("[重建] 强制旋转重建...")
+                should_generate_mesh = True
+                centroid = np.mean(preview_pts, axis=0)
+                centered = preview_pts - centroid
+                cov = centered.T @ centered / (len(preview_pts) - 1)
+                eigenvalues, eigenvectors = np.linalg.eigh(cov)
+                axis_vec = eigenvectors[:, -1]
+                result['axisymmetry_info']['detected'] = True
+                result['axisymmetry_info']['score'] = 0.0
+
+                revolve_result = revolve_reconstruction(
+                    preview_pts, axis_vector=axis_vec, axis_origin=centroid,
+                    n_z=128, n_theta=128,
+                    seal_bottom=True, seal_top=True
+                )
+                if revolve_result['success'] and revolve_result['mesh'] is not None:
+                    mesh = revolve_result['mesh']
+                    mesh_filename = f"{name_without_ext}_revolved.obj"
+                    mesh_path = os.path.join(output_dir, mesh_filename)
+                    o3d.io.write_triangle_mesh(mesh_path, mesh)
+                    result['mesh_path'] = mesh_path
+                    result['axisymmetry_info']['mesh_generated'] = True
+                    print(f"[重建] 强制旋转重建成功: {len(mesh.vertices)} 顶点")
+                else:
+                    print("[重建] 强制旋转重建失败")
+                    result['axisymmetry_info']['mesh_generated'] = False
+
+            elif reconstruction_mode == 'axis_off':
+                print("[重建] 关闭轴对称，运行 Poisson")
+                should_generate_mesh = True
+                _do_poisson_reconstruction(output_path, output_dir, name_without_ext, result, preview_pts)
+
         except Exception as e:
-            print(f"[泊松重建] 警告: 重建流程异常({e})，不影响点云输出")
+            print(f"[重建] 重建流程异常({e})，不影响点云输出")
             import traceback
             traceback.print_exc()
             result['mesh_path'] = ''
+            result['axisymmetry_info']['mesh_generated'] = False
 
         result['time_elapsed'] = time.time() - start_time
         print(f"推理完成，耗时: {result['time_elapsed']:.2f}秒")
-        print(f"输出点数: {len(completed_points)}")
+        print(f"预览点云点数: {len(preview_pts)}")
+        print(f"网格生成: {result['axisymmetry_info']['mesh_generated']}")
 
     except Exception as e:
         print(f"推理过程出错: {e}")
@@ -379,6 +621,13 @@ def upload_file():
         if model_type not in ['pointr', 'pfnet']:
             model_type = 'pointr'
         print(f"[上传接口] 请求模型类型: {model_type}")
+
+        # 获取重建模式参数，默认为 axis_auto（自动检测轴对称）
+        reconstruction_mode = request.form.get('reconstruction_mode', 'axis_auto')
+        valid_modes = ['point_only', 'poisson', 'axis_auto', 'axis_force', 'axis_off']
+        if reconstruction_mode not in valid_modes:
+            reconstruction_mode = 'axis_auto'
+        print(f"[上传接口] 请求重建模式: {reconstruction_mode}")
         
         print("\n" + "=" * 80)
         print("========== [上传接口] 请求到达 ==========")
@@ -462,7 +711,7 @@ def upload_file():
             print(f"[上传接口] 输出目录: {app.config['PROCESSED_FOLDER']}")
             print(f"[上传接口] 使用模型: {model_type}")
             
-            result = run_point_completion(filepath, app.config['PROCESSED_FOLDER'], model_type=model_type)
+            result = run_point_completion(filepath, app.config['PROCESSED_FOLDER'], model_type=model_type, reconstruction_mode=reconstruction_mode)
             
             if result['success']:
                 print(f"\n[上传接口] ========== 推理函数执行完毕 ==========")
@@ -570,7 +819,9 @@ def upload_file():
             'mesh_file_url': mesh_file_url,
             'point_cloud_result': point_cloud_result,
             'diffusion_result': diffusion_result,
-            'model_used': diffusion_result.get('model_used', 'unknown')
+            'model_used': diffusion_result.get('model_used', 'unknown'),
+            'reconstruction_mode': reconstruction_mode,
+            'axisymmetry_info': result.get('axisymmetry_info', {})
         })
 
     except Exception as e:

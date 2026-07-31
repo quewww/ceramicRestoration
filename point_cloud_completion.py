@@ -5,6 +5,9 @@ import torch
 import sys
 import os
 
+# 统一归一化 API（强制使用，禁止自行实现）
+from pointcloud_utils import preprocess_points, postprocess_points
+
 # 第一步：设置路径
 base_dir = os.path.dirname(__file__)
 pointr_dir = os.path.join(base_dir, 'PoinTr')
@@ -157,38 +160,21 @@ def load_model():
         return None
 
 
-def preprocess_points(points, target_num=2048):
-    """预处理点云：归一化 + 降采样到固定点数"""
-    if len(points) == 0:
-        return np.zeros((target_num, 3)), 1.0, np.zeros(3)
-
-    center = np.mean(points, axis=0)
-    scale = np.max(np.linalg.norm(points - center, axis=1))
-    if scale < 1e-6:
-        scale = 1.0
-
-    normalized = (points - center) / scale
-
-    if len(normalized) > target_num:
-        indices = np.random.choice(len(normalized), target_num, replace=False)
-        normalized = normalized[indices]
-    elif len(normalized) < target_num:
-        indices = np.random.choice(len(normalized), target_num, replace=True)
-        normalized = normalized[indices]
-
-    return normalized, scale, center
+# preprocess_points / postprocess_points 已统一到 pointcloud_utils.py
+# 禁止在此文件中自行实现归一化逻辑
+# 如需采样到固定点数，单独使用 sample_to_target() 函数
 
 
-def postprocess_points(points, scale, center):
-    """后处理：还原到原始坐标系"""
-    try:
-        return points * scale + center
-    except:
-        import numpy as np
-        # 确保是 NumPy 数组
-        if not isinstance(points, np.ndarray):
-            points = np.array(points)
-        return points * scale + center
+def sample_to_target(points, target_num=2048):
+    """将点云采样到固定点数（随机采样 + 补足）"""
+    if len(points) > target_num:
+        indices = np.random.choice(len(points), target_num, replace=False)
+        return points[indices]
+    elif len(points) < target_num:
+        remaining = target_num - len(points)
+        indices = np.random.choice(len(points), remaining, replace=True)
+        return np.vstack([points, points[indices]])
+    return points
 
 
 def run_point_completion(points, target_points=None):
@@ -202,12 +188,17 @@ def run_point_completion(points, target_points=None):
 
     device = get_device()
 
-    normalized, scale, center = preprocess_points(points, target_num=2048)
+    # 统一归一化（包围盒中心 + 半宽）
+    normalized, center, scale = preprocess_points(points)
+    # 采样到模型需要的 2048 点
+    model_input = sample_to_target(normalized, target_num=2048)
 
     print("\n预处理完成:")
     print(f"  - 输入点数: {len(points)}")
+    print(f"  - 归一化后点数: {len(normalized)}")
+    print(f"  - 模型输入点数: {len(model_input)}")
 
-    input_tensor = torch.FloatTensor(normalized).unsqueeze(0).to(device)
+    input_tensor = torch.FloatTensor(model_input).unsqueeze(0).to(device)
 
     print("\n正在进行点云补全推理...")
 

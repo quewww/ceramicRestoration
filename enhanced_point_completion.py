@@ -12,6 +12,10 @@ except ImportError as e:
 
 import open3d as o3d
 
+# 统一归一化 API（强制使用，禁止自行实现）
+from pointcloud_utils import preprocess_points as unified_preprocess
+from pointcloud_utils import postprocess_points as unified_postprocess
+
 try:
     import torch
     print(f"PyTorch 导入成功，版本: {torch.__version__}")
@@ -143,18 +147,8 @@ def preprocess_points(points, target_num=2048):
                 indices = np.random.choice(len(points), remaining, replace=True)
                 points = np.vstack([points, points[indices]])
     
-    # 步骤2：归一化处理
-    # 计算质心并平移到原点
-    center = np.mean(points, axis=0)
-    translated = points - center
-    
-    # 等比例缩放，使最远点落在单位球面上（即最大距离为1）
-    max_distance = np.max(np.linalg.norm(translated, axis=1))
-    if max_distance < 1e-6:
-        max_distance = 1.0
-    scale = max_distance
-    
-    normalized = translated / scale
+    # 步骤2：统一归一化（包围盒中心 + 最大维度半宽，PoinTr 训练标准）
+    normalized, center, scale = unified_preprocess(points)
     
     # 步骤3：体素降采样到2048个点
     if len(normalized) > target_num:
@@ -176,6 +170,7 @@ def preprocess_points(points, target_num=2048):
             normalized = np.vstack([normalized, normalized[indices]])
     
     print(f"  ✅ 预处理完成，输出点数: {len(normalized)}")
+    # 保持返回签名与调用方一致: (normalized, scale, center)
     return normalized, scale, center
 
 
@@ -261,10 +256,8 @@ def knn_interpolation_upsample(points, target_num):
     return combined[:target_num]
 
 
-def postprocess_points(points, scale, center):
-    if not isinstance(points, np.ndarray):
-        points = np.array(points)
-    return points * scale + center
+# postprocess_points 已统一到 pointcloud_utils.py
+# 禁止在此文件中自行实现逆归一化逻辑
 
 
 def run_point_completion(points, target_points=None):
@@ -314,7 +307,7 @@ def run_point_completion(points, target_points=None):
                     import numpy as np
                     completed = np.array(completed)
 
-            completed = postprocess_points(completed, scale, center)
+            completed = unified_postprocess(completed, center, scale)
 
             # 根据target_points调整输出数量
             if target_points is not None and target_points > 0:
