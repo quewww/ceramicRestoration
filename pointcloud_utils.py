@@ -1,6 +1,139 @@
 import numpy as np
 import open3d as o3d
 import os
+import struct
+
+
+def _read_ply_fallback(filepath):
+    """兼容 Blender / binary PLY：在 Open3D 读取失败时手动解析 x/y/z 和可选 rgb/normal。"""
+    with open(filepath, 'rb') as f:
+        data = f.read()
+
+    if not data:
+        raise ValueError('PLY 文件为空')
+
+    try:
+        text = data.decode('utf-8')
+    except UnicodeDecodeError:
+        text = data.decode('latin1')
+
+    lines = text.splitlines()
+    header_lines = []
+    end_header_idx = None
+    for idx, line in enumerate(lines):
+        header_lines.append(line.strip())
+        if line.strip() == 'end_header':
+            end_header_idx = idx
+            break
+
+    if end_header_idx is None:
+        raise ValueError('无法解析 PLY 头部信息')
+
+    header = header_lines[:end_header_idx]
+    format_line = next((h for h in header if h.startswith('format ')), '')
+    format_name = format_line.split()[1] if len(format_line.split()) >= 2 else 'ascii'
+    vertex_count = None
+    properties = []
+    element_vertices = False
+
+    for line in header:
+        if line.startswith('element vertex'):
+            try:
+                vertex_count = int(line.split()[-1])
+                element_vertices = True
+            except Exception:
+                pass
+        elif element_vertices and line.startswith('property '):
+            parts = line.split()
+            if len(parts) >= 3:
+                prop_type = parts[1]
+                prop_name = parts[2]
+                properties.append((prop_type, prop_name))
+
+    if vertex_count is None or not properties:
+        raise ValueError('PLY 头部缺少 vertex/property 定义')
+
+    property_names = [p[1] for p in properties]
+    xyz_idx = [property_names.index(k) for k in ['x', 'y', 'z'] if k in property_names]
+    if len(xyz_idx) != 3:
+        raise ValueError('PLY 头部中未找到 x/y/z 坐标属性')
+
+    if format_name == 'ascii':
+        body = text.split('end_header', 1)[1].strip()
+        rows = [line.strip() for line in body.splitlines() if line.strip()]
+        if len(rows) < vertex_count:
+            raise ValueError('ASCII PLY 顶点数与头部声明不一致')
+        xyz = []
+        rgb = []
+        for row in rows[:vertex_count]:
+            vals = row.split()
+            if len(vals) < 3:
+                continue
+            xyz.append([float(vals[0]), float(vals[1]), float(vals[2])])
+            if len(vals) >= 6 and property_names[:3] == ['x', 'y', 'z']:
+                pass
+            if 'red' in property_names or 'green' in property_names or 'blue' in property_names:
+                idx_r = property_names.index('red') if 'red' in property_names else None
+                idx_g = property_names.index('green') if 'green' in property_names else None
+                idx_b = property_names.index('blue') if 'blue' in property_names else None
+                if idx_r is not None and idx_g is not None and idx_b is not None:
+                    rgb.append([
+                        float(vals[idx_r]) / 255.0,
+                        float(vals[idx_g]) / 255.0,
+                        float(vals[idx_b]) / 255.0
+                    ])
+        points = np.asarray(xyz, dtype=np.float32)
+        if len(rgb) == len(points):
+            return points, np.asarray(rgb, dtype=np.float32)
+        return points, None
+
+    # binary little/big endian
+    body = data.split(b'end_header\n', 1)[1] if b'end_header\n' in data else data.split(b'end_header\r\n', 1)[1]
+    total_bytes = len(body)
+    if total_bytes == 0:
+        raise ValueError('二进制 PLY 体数据为空')
+
+    type_map = {
+        'char': 'b', 'uchar': 'B', 'short': 'h', 'ushort': 'H',
+        'int': 'i', 'uint': 'I', 'float': 'f', 'double': 'd'
+    }
+    fmt = '<' if 'little' in format_name else '>'
+    struct_fmt = []
+    for prop_type, _ in properties:
+        if prop_type not in type_map:
+            raise ValueError(f'暂不支持的 PLY property 类型: {prop_type}')
+        struct_fmt.append(type_map[prop_type])
+    item_size = struct.calcsize(fmt + ''.join(struct_fmt))
+    if item_size <= 0 or vertex_count <= 0:
+        raise ValueError('无法计算 PLY 二进制数据大小')
+
+    points = []
+    colors = []
+    offset = 0
+    for i in range(vertex_count):
+        if offset + item_size > total_bytes:
+            break
+        item = struct.unpack(fmt + ''.join(struct_fmt), body[offset:offset + item_size])
+        offset += item_size
+        values = dict(zip(property_names, item))
+        if 'x' in values and 'y' in values and 'z' in values:
+            points.append([float(values['x']), float(values['y']), float(values['z'])])
+        if 'red' in values and 'green' in values and 'blue' in values:
+            colors.append([
+                float(values['red']) / 255.0,
+                float(values['green']) / 255.0,
+                float(values['blue']) / 255.0
+            ])
+
+    if not points:
+        raise ValueError('二进制 PLY 未解析出有效顶点')
+
+    points = np.asarray(points, dtype=np.float32)
+    if colors:
+        colors = np.asarray(colors, dtype=np.float32)
+        if len(colors) == len(points):
+            return points, colors
+    return points, None
 
 
 # ==================== 统一归一化 API（全工程强制使用） ====================
@@ -73,10 +206,19 @@ def read_point_cloud(filepath):
     ext = os.path.splitext(filepath)[1].lower()
 
     if ext == '.ply':
-        pcd = o3d.io.read_point_cloud(filepath)
-        points = np.asarray(pcd.points)
-        colors = np.asarray(pcd.colors) if pcd.has_colors() else None
-        return points, colors
+        try:
+            pcd = o3d.io.read_point_cloud(filepath)
+            if pcd.is_empty():
+                raise ValueError('Open3D 读取为空')
+            points = np.asarray(pcd.points)
+            colors = np.asarray(pcd.colors) if pcd.has_colors() else None
+            if len(points) == 0:
+                raise ValueError('Open3D 读取到空点云')
+            return points, colors
+        except Exception as e:
+            print(f"[点云读取] Open3D 读取失败，切换到兼容 PLY 解析: {e}")
+            points, colors = _read_ply_fallback(filepath)
+            return points, colors
     elif ext == '.xyz':
         try:
             points = np.loadtxt(filepath, dtype=np.float32, usecols=(0, 1, 2))

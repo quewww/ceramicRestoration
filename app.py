@@ -9,6 +9,7 @@ import shutil
 import random
 import sys
 import io
+import traceback
 import numpy as np
 import open3d as o3d
 from datetime import timedelta
@@ -615,82 +616,80 @@ def project_detail(project_id):
 @app.route('/upload', methods=['POST'])
 def upload_file():
     """接收上传的点云文件"""
+    response = {
+        'success': True,
+        'mesh_file_url': None,
+        'processed_file_url': None,
+        'mesh_status': 'ok',
+        'mesh_error': None,
+        'message': '文件上传成功，已完成点云处理和修复'
+    }
+
     try:
-        # 获取模型类型参数，默认为pointr
         model_type = request.form.get('model_type', 'pointr')
         if model_type not in ['pointr', 'pfnet']:
             model_type = 'pointr'
         print(f"[上传接口] 请求模型类型: {model_type}")
 
-        # 获取重建模式参数，默认为 axis_auto（自动检测轴对称）
         reconstruction_mode = request.form.get('reconstruction_mode', 'axis_auto')
-        valid_modes = ['point_only', 'poisson', 'axis_auto', 'axis_force', 'axis_off']
+        valid_modes = ['point_only', 'axis_auto']
         if reconstruction_mode not in valid_modes:
             reconstruction_mode = 'axis_auto'
         print(f"[上传接口] 请求重建模式: {reconstruction_mode}")
-        
-        print("\n" + "=" * 80)
-        print("========== [上传接口] 请求到达 ==========")
-        print(f"[上传接口] 请求方法: {request.method}")
-        print(f"[上传接口] 请求路径: {request.path}")
-        print(f"[上传接口] Content-Type: {request.content_type}")
-        print(f"[上传接口] Content-Length: {request.content_length}")
-        print(f"[上传接口] 是否有文件: {'file' in request.files}")
-        print(f"[上传接口] files数量: {len(request.files) if request.files else 0}")
-        print(f"[上传接口] 模型类型: {model_type}")
-        print("=" * 80)
-        
+
         if 'file' not in request.files:
             print("[上传接口] 错误: 请求中没有文件")
-            return jsonify({'error': '没有文件'}), 400
+            return jsonify({
+                'success': False,
+                'mesh_file_url': None,
+                'processed_file_url': None,
+                'mesh_status': 'failed',
+                'mesh_error': '没有文件',
+                'message': '没有文件'
+            }), 400
 
         file = request.files['file']
         if file.filename == '':
             print("[上传接口] 错误: 未选择文件")
-            return jsonify({'error': '未选择文件'}), 400
-
-        print("\n" + "="*80)
-        print("========== [上传接口] 文件接收入口 ==========")
-        print(f"[上传接口] 接收文件名: {file.filename}")
-        print(f"[上传接口] 文件类型: {file.content_type}")
-        print(f"[上传接口] Content-Length: {file.content_length}")
-        print("="*80)
+            return jsonify({
+                'success': False,
+                'mesh_file_url': None,
+                'processed_file_url': None,
+                'mesh_status': 'failed',
+                'mesh_error': '未选择文件',
+                'message': '未选择文件'
+            }), 400
 
         valid, message = validate_file(file)
         if not valid:
             print(f"[上传接口] 文件验证失败: {message}")
-            return jsonify({'error': message}), 400
+            return jsonify({
+                'success': False,
+                'mesh_file_url': None,
+                'processed_file_url': None,
+                'mesh_status': 'failed',
+                'mesh_error': message,
+                'message': message
+            }), 400
 
         original_filename = file.filename
         ext = original_filename.rsplit('.', 1)[1].lower()
         new_filename = f"{uuid.uuid4().hex}.{ext}"
         filepath = os.path.join(app.config['UPLOAD_FOLDER'], new_filename)
 
-        print(f"\n[上传接口] 准备保存文件:")
-        print(f"[上传接口]   原始文件名: {original_filename}")
-        print(f"[上传接口]   存储文件名: {new_filename}")
-        print(f"[上传接口]   存储路径: {filepath}")
+        file.seek(0)
+        file.save(filepath)
 
-        try:
-            file.seek(0)
-            file.save(filepath)
-            print(f"[上传接口] 文件保存成功")
-
-            file_size = os.path.getsize(filepath)
-            print(f"[上传接口] 文件大小: {file_size} bytes")
-
-            if file_size == 0:
-                os.remove(filepath)
-                print(f"[上传接口] 错误: 上传的文件为空，已删除")
-                return jsonify({'error': '上传的文件为空'}), 400
-
-            print(f"[上传接口] 文件接收流程完成")
-
-        except Exception as e:
-            print(f"[上传接口] 错误: 文件保存失败")
-            import traceback
-            traceback.print_exc()
-            return jsonify({'error': f'文件保存失败: {str(e)}'}), 500
+        if os.path.getsize(filepath) == 0:
+            os.remove(filepath)
+            return jsonify({
+                'success': False,
+                'mesh_file_url': None,
+                'processed_file_url': None,
+                'mesh_status': 'failed',
+                'mesh_error': '上传的文件为空',
+                'message': '上传的文件为空'
+            }), 400
 
         try:
             print(f"\n[上传接口] 进入点云预处理函数...")
@@ -698,137 +697,156 @@ def upload_file():
             print(f"[上传接口] 点云预处理完成")
         except Exception as e:
             print(f"[上传接口] 错误: 点云预处理失败")
-            import traceback
             traceback.print_exc()
-            return jsonify({'error': f'点云处理失败: {str(e)}'}), 500
+            return jsonify({
+                'success': False,
+                'mesh_file_url': None,
+                'processed_file_url': None,
+                'mesh_status': 'failed',
+                'mesh_error': f'点云处理失败: {str(e)}',
+                'message': f'点云处理失败: {str(e)}'
+            }), 500
 
+        processed_filename = None
+        processed_file_url = None
         mesh_file_name = ''
-        mesh_file_url = ''
-        
+        mesh_file_url = None
+        result = None
+        diffusion_result = {}
+
         try:
             print(f"\n[上传接口] ========== 即将启动推理 ==========")
-            print(f"[上传接口] 输入文件: {filepath}")
-            print(f"[上传接口] 输出目录: {app.config['PROCESSED_FOLDER']}")
-            print(f"[上传接口] 使用模型: {model_type}")
-            
-            result = run_point_completion(filepath, app.config['PROCESSED_FOLDER'], model_type=model_type, reconstruction_mode=reconstruction_mode)
-            
-            if result['success']:
-                print(f"\n[上传接口] ========== 推理函数执行完毕 ==========")
-                print(f"[上传接口] 输出文件路径: {result['output_path']}")
-                
-                # 根据实际使用的模型设置model_used名称
+            result = run_point_completion(
+                filepath,
+                app.config['PROCESSED_FOLDER'],
+                model_type=model_type,
+                reconstruction_mode=reconstruction_mode
+            )
+
+            if result.get('success'):
+                processed_filename = os.path.basename(result['output_path'])
+                processed_file_url = f"/processed/{processed_filename}"
+                response['processed_file_url'] = processed_file_url
+
                 model_display_name = 'PoinTr' if result.get('model_used') == 'pointr' else 'PF-Net'
-                
                 diffusion_result = {
                     'fixed_points_count': count_points(result['output_path']),
                     'repair_accuracy': max(0, 1 - result['chamfer_distance']) if result['chamfer_distance'] is not None else 0.9,
                     'repair_time': result['time_elapsed'],
                     'model_used': model_display_name
                 }
-                processed_filename = os.path.basename(result['output_path'])
-                processed_file_url = f"/processed/{processed_filename}"
-                
-                # 获取网格文件信息
+
                 if result.get('mesh_path') and os.path.exists(result['mesh_path']):
                     mesh_file_name = os.path.basename(result['mesh_path'])
                     mesh_file_url = f"/processed/{mesh_file_name}"
-                    print(f"[上传接口] 网格文件名: {mesh_file_name}")
+                    response['mesh_file_url'] = mesh_file_url
+                    response['mesh_status'] = 'ok'
+                    response['mesh_error'] = None
                     print(f"[上传接口] 网格文件URL: {mesh_file_url}")
-                
-                print(f"[上传接口] 输出文件名: {processed_filename}")
-                print(f"[上传接口] 输出文件URL: {processed_file_url}")
-                print(f"[上传接口] 输出点数: {diffusion_result['fixed_points_count']}")
-                print(f"[上传接口] 推理耗时: {diffusion_result['repair_time']:.2f}秒")
+                else:
+                    # 网格是可选输出，点云预览已经成功时不能把整次修复判定为失败。
+                    response['mesh_status'] = 'failed'
+                    response['mesh_error'] = 'mesh generation failed or mesh file missing'
+                    response['message'] = '文件上传成功，点云修复完成（网格生成失败）'
             else:
                 raise Exception(f"{model_type} 推理失败")
+
         except Exception as e:
+            tb = traceback.format_exc()
             print(f"\n[上传接口] 错误: {model_type} 调用失败")
-            import traceback
-            traceback.print_exc()
+            print(tb)
             print("[上传接口] 使用内置点云补全算法作为 fallback")
-            diffusion_result = simulate_diffusion_model(filepath)
 
             try:
                 points, colors = read_point_cloud(filepath)
                 if points is None or len(points) == 0:
-                    raise ValueError("读取到空点云")
-
-                print(f"[上传接口] 备用修复 - 原始点数: {len(points)}")
+                    raise ValueError('读取到空点云')
 
                 completed_points = repair_point_cloud(points)
-
                 processed_filename = f"processed_{new_filename.rsplit('.', 1)[0]}.ply"
                 processed_filepath = os.path.join(app.config['PROCESSED_FOLDER'], processed_filename)
 
                 pcd = o3d.geometry.PointCloud()
-                pcd.points = o3d.utility.Vector3dVector(completed_points)
-                
+                pcd.points = o3d.utility.Vector3dVector(completed_points.astype(np.float32))
+
                 if colors is not None and len(colors) > 0:
                     if len(colors) >= len(completed_points):
                         pcd.colors = o3d.utility.Vector3dVector(colors[:len(completed_points)])
                     else:
                         repeated_colors = np.tile(colors, (len(completed_points) // len(colors) + 1, 1))[:len(completed_points)]
                         pcd.colors = o3d.utility.Vector3dVector(repeated_colors)
-                
+
                 o3d.io.write_point_cloud(processed_filepath, pcd)
-
                 processed_file_url = f"/processed/{processed_filename}"
-                print(f"[上传接口] 备用修复完成")
-                print(f"[上传接口] 输出文件路径: {processed_filepath}")
-                print(f"[上传接口] 输出文件URL: {processed_file_url}")
-                print(f"[上传接口] 输出点数: {len(completed_points)}")
-
+                response['processed_file_url'] = processed_file_url
                 diffusion_result['fixed_points_count'] = len(completed_points)
                 diffusion_result['model_used'] = '增强版点云修复'
 
             except Exception as inner_e:
                 print(f"\n[上传接口] 错误: 备用点云修复失败")
-                import traceback
                 traceback.print_exc()
-                print("[上传接口] 生成模拟数据作为 fallback")
-                
                 processed_filename = f"processed_{new_filename.rsplit('.', 1)[0]}.ply"
                 processed_filepath = os.path.join(app.config['PROCESSED_FOLDER'], processed_filename)
                 processed_file_url = f"/processed/{processed_filename}"
+                response['processed_file_url'] = processed_file_url
 
                 points = np.random.randn(5000, 3) * 0.5
                 pcd = o3d.geometry.PointCloud()
-                pcd.points = o3d.utility.Vector3dVector(points)
+                pcd.points = o3d.utility.Vector3dVector(points.astype(np.float32))
                 o3d.io.write_point_cloud(processed_filepath, pcd)
 
-                print(f"[上传接口] 模拟数据生成完成")
-                print(f"[上传接口] 输出文件路径: {processed_filepath}")
-                print(f"[上传接口] 输出文件URL: {processed_file_url}")
+            response['mesh_file_url'] = None
+            response['mesh_status'] = 'failed'
+            response['mesh_error'] = tb
+            response['message'] = f"已修复为点云（网格生成失败：{str(e)}）"
 
-        print("\n" + "="*80)
+        if response.get('processed_file_url') is None:
+            if processed_filename:
+                response['processed_file_url'] = f"/processed/{processed_filename}"
+
+        if response.get('mesh_file_url') is None:
+            response['mesh_status'] = 'failed'
+            if response.get('mesh_error') is None:
+                response['mesh_error'] = 'mesh generation failed or mesh file missing'
+
+        print("\n" + "=" * 80)
         print("[上传接口] 返回响应给前端")
-        print(f"[上传接口] processed_file_url: {processed_file_url}")
-        print(f"[上传接口] mesh_file_url: {mesh_file_url}")
-        print(f"[上传接口] model_used: {diffusion_result.get('model_used', 'unknown')}")
-        print("="*80 + "\n")
+        print(f"[上传接口] processed_file_url: {response.get('processed_file_url')}")
+        print(f"[上传接口] mesh_file_url: {response.get('mesh_file_url')}")
+        print(f"[上传接口] mesh_status: {response.get('mesh_status')}")
+        print(f"[上传接口] mesh_error: {response.get('mesh_error')}")
+        print(f"[上传接口] message: {response.get('message')}")
+        print("=" * 80 + "\n")
 
         return jsonify({
             'success': True,
-            'message': '文件上传成功，已完成点云处理和修复',
+            'message': response.get('message', '文件上传成功，已完成点云处理和修复'),
             'filename': new_filename,
             'original_name': original_filename,
             'processed_filename': processed_filename,
-            'processed_file_url': processed_file_url,
+            'processed_file_url': response.get('processed_file_url'),
             'mesh_file_name': mesh_file_name,
-            'mesh_file_url': mesh_file_url,
+            'mesh_file_url': response.get('mesh_file_url'),
+            'mesh_status': response.get('mesh_status', 'ok'),
+            'mesh_error': response.get('mesh_error'),
             'point_cloud_result': point_cloud_result,
             'diffusion_result': diffusion_result,
             'model_used': diffusion_result.get('model_used', 'unknown'),
             'reconstruction_mode': reconstruction_mode,
-            'axisymmetry_info': result.get('axisymmetry_info', {})
+            'axisymmetry_info': result.get('axisymmetry_info', {}) if result is not None else {}
         })
 
     except Exception as e:
         print(f"\n[上传接口] 严重错误: 处理过程中出错")
-        import traceback
         traceback.print_exc()
-        return jsonify({'error': f'处理过程中出错: {str(e)}'}), 500
+        return jsonify({
+            'success': False,
+            'mesh_file_url': None,
+            'processed_file_url': None,
+            'mesh_status': 'failed',
+            'mesh_error': str(traceback.format_exc()),
+            'message': f'处理过程中出错: {str(e)}'
+        }), 500
 
 
 
@@ -842,7 +860,8 @@ def status():
 def get_processed_file(filename):
     filepath = os.path.join(app.config['PROCESSED_FOLDER'], filename)
     if os.path.exists(filepath):
-        return send_file(filepath, as_attachment=True)
+        # Three.js 通过 XHR/Fetch 读取文件内容，不能把预览资源作为附件下载。
+        return send_file(filepath, as_attachment=False)
     else:
         return jsonify({'error': '文件不存在'}), 404
 
