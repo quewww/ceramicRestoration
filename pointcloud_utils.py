@@ -279,6 +279,120 @@ def write_point_cloud(points, filepath):
     o3d.io.write_point_cloud(filepath, pcd, write_ascii=False)
 
 
+def axisymmetric_completion(points, axis_vector, axis_origin,
+                            n_z=96, n_theta=72, min_points_per_layer=8):
+    """
+    按高度分层的旋转对称点云补全，同时保留全部原始点。
+
+    每个高度层独立统计已有角度和径向轮廓，只在该层缺失的角度
+    生成一个使用本层半径的点。这样不会把碗底点整体复制到碗壁，
+    也不会对原始点做降采样、去噪或删除。
+    """
+    points = np.asarray(points, dtype=np.float32)
+    axis_vector = np.asarray(axis_vector, dtype=np.float32)
+    axis_origin = np.asarray(axis_origin, dtype=np.float32)
+
+    if len(points) < 20:
+        raise ValueError("轴对称补全至少需要 20 个点")
+
+    axis_norm = np.linalg.norm(axis_vector)
+    if axis_norm < 1e-8:
+        raise ValueError("轴对称补全收到无效旋转轴")
+    axis_vector = axis_vector / axis_norm
+
+    x_axis, y_axis, z_axis, rotation = _build_local_frame(axis_vector)
+    centered = points - axis_origin
+    local_points = centered @ rotation
+    axial_values = local_points[:, 2]
+    radial_values = np.linalg.norm(local_points[:, :2], axis=1)
+    angles = np.mod(
+        np.arctan2(local_points[:, 1], local_points[:, 0]),
+        2.0 * np.pi
+    )
+    z_min, z_max = float(axial_values.min()), float(axial_values.max())
+    if z_max - z_min < 1e-6:
+        return points.copy()
+
+    z_edges = np.linspace(z_min, z_max, n_z + 1)
+    theta_width = 2.0 * np.pi / n_theta
+    new_points = []
+    layer_reports = []
+    global_outer_radius = float(np.percentile(radial_values, 90))
+
+    for layer_index in range(n_z):
+        if layer_index == n_z - 1:
+            layer_mask = (
+                (axial_values >= z_edges[layer_index])
+                & (axial_values <= z_edges[layer_index + 1])
+            )
+        else:
+            layer_mask = (
+                (axial_values >= z_edges[layer_index])
+                & (axial_values < z_edges[layer_index + 1])
+            )
+        if int(layer_mask.sum()) < min_points_per_layer:
+            continue
+
+        layer_angles = angles[layer_mask]
+        layer_radii = radial_values[layer_mask]
+        layer_outer = float(np.percentile(layer_radii, 80))
+        if layer_outer < global_outer_radius * 0.35:
+            continue
+
+        layer_z = float(np.median(axial_values[layer_mask]))
+        bins = np.floor(layer_angles / theta_width).astype(np.int32) % n_theta
+        radii = np.full(n_theta, np.nan, dtype=np.float32)
+        counts = np.bincount(bins, minlength=n_theta)
+
+        for bin_index in np.flatnonzero(counts):
+            # 取高分位半径，更接近碗外轮廓，避免向内收缩。
+            radii[bin_index] = np.quantile(layer_radii[bins == bin_index], 0.8)
+
+        occupied = np.isfinite(radii)
+        occupied_bins = np.flatnonzero(occupied)
+        coverage = len(occupied_bins) / n_theta
+        if len(occupied_bins) < 3 or len(occupied_bins) == n_theta:
+            continue
+        if coverage < 0.45 or coverage > 0.95:
+            continue
+
+        missing_bins = np.flatnonzero(~occupied)
+        for target_bin in missing_bins:
+            left = (target_bin - 1) % n_theta
+            while not occupied[left] and left != target_bin:
+                left = (left - 1) % n_theta
+            right = (target_bin + 1) % n_theta
+            while not occupied[right] and right != target_bin:
+                right = (right + 1) % n_theta
+            if not occupied[left] or not occupied[right]:
+                continue
+
+            left_distance = (target_bin - left) % n_theta
+            span = (right - left) % n_theta
+            t = left_distance / span if span else 0.5
+            radius = (1.0 - t) * radii[left] + t * radii[right]
+            theta = (target_bin + 0.5) * theta_width
+            local = np.array([
+                radius * np.cos(theta),
+                radius * np.sin(theta),
+                layer_z
+            ], dtype=np.float32)
+            new_points.append(axis_origin + local[0] * x_axis
+                              + local[1] * y_axis + local[2] * z_axis)
+
+        layer_reports.append((layer_index, len(occupied_bins), len(missing_bins)))
+
+    if not new_points:
+        print("[轴对称补全] 没有检测到可补全的分层缺口")
+        return points.copy()
+
+    completed = np.asarray(new_points, dtype=np.float32)
+    result = np.vstack([points, completed])
+    print(f"[轴对称补全] 有效分层: {len(layer_reports)}/{n_z}, "
+          f"新增点: {len(completed)}, 最终点: {len(result)}")
+    return result
+
+
 def downsample_point_cloud(points, target_points=20000):
     """体素降采样，将点数减少到 target_points 以内"""
     if len(points) <= target_points:
@@ -365,11 +479,11 @@ def detect_axisymmetry(points, z_layers=20, theta_bins=12, threshold=0.12):
     检测点云是否为轴对称物体（如陶瓷罐、花瓶等旋转体）。
 
     算法：
-      1. PCA 求主方向，取 PC1 和 PC2 作为候选旋转轴
+      1. PCA 求主方向，取 PC1、PC2 和 PC3 作为候选旋转轴
       2. 对每个候选轴：将点投影到轴向坐标 z 和径向 r
       3. 沿 z 轴分层，每层做角度分箱，计算径向分布的方差
       4. 汇总得到 axisymmetry score，score 越小越接近轴对称
-      5. 取两个候选轴中 score 更小的作为最终轴
+      5. 取三个候选轴中 score 更小的作为最终轴
 
     Args:
         points: (N, 3) numpy 数组
@@ -385,7 +499,8 @@ def detect_axisymmetry(points, z_layers=20, theta_bins=12, threshold=0.12):
             axis_origin: (3,) float,   # 旋转轴通过的点（物体重心）
             pc1_score: float,          # PC1 作为轴时的分数
             pc2_score: float,          # PC2 作为轴时的分数
-            best_pc: int               # 哪个主方向作为轴更好（0=PC1, 1=PC2）
+            pc3_score: float,          # PC3 作为轴时的分数
+            best_pc: int               # 哪个主方向作为轴更好（0=PC1, 1=PC2, 2=PC3）
         }
     """
     points = np.asarray(points, dtype=np.float32)
@@ -411,8 +526,8 @@ def detect_axisymmetry(points, z_layers=20, theta_bins=12, threshold=0.12):
     eigenvalues = eigenvalues[::-1]
     eigenvectors = eigenvectors[:, ::-1]
 
-    # 取前两个主方向作为候选旋转轴
-    candidates = [eigenvectors[:, 0], eigenvectors[:, 1]]  # PC1, PC2
+    # 旋转轴既可能是最大方差方向（细长花瓶），也可能是最小方差方向（浅碗）。
+    candidates = [eigenvectors[:, i] for i in range(3)]  # PC1, PC2, PC3
     candidate_scores = []
 
     for axis_vec in candidates:
@@ -422,7 +537,13 @@ def detect_axisymmetry(points, z_layers=20, theta_bins=12, threshold=0.12):
         z_coords = centered @ axis_vec                   # (N,)
         perp_coords = centered - np.outer(z_coords, axis_vec)  # (N, 3)
         r_coords = np.linalg.norm(perp_coords, axis=1)   # (N,)
-        theta_coords = np.arctan2(perp_coords[:, 1], perp_coords[:, 0])  # (N,)
+        # 角度必须在候选轴自己的垂直平面内计算；直接使用世界坐标
+        # 的 x/y 会让沿 Y 或 Z 轴的碗被错误判定。
+        local_x, local_y, _, _ = _build_local_frame(axis_vec)
+        theta_coords = np.arctan2(
+            perp_coords @ local_y,
+            perp_coords @ local_x
+        )  # (N,)
 
         # --- 沿 z 轴分层（等距分层） ---
         z_min, z_max = z_coords.min(), z_coords.max()
@@ -471,13 +592,9 @@ def detect_axisymmetry(points, z_layers=20, theta_bins=12, threshold=0.12):
     # 选取分数更低的候选轴
     pc1_score = candidate_scores[0]
     pc2_score = candidate_scores[1]
-
-    if pc1_score <= pc2_score:
-        best_idx = 0
-        best_score = pc1_score
-    else:
-        best_idx = 1
-        best_score = pc2_score
+    pc3_score = candidate_scores[2]
+    best_idx = int(np.argmin(candidate_scores))
+    best_score = candidate_scores[best_idx]
 
     best_axis = candidates[best_idx].astype(np.float32)
     is_axi = best_score < threshold
@@ -489,11 +606,13 @@ def detect_axisymmetry(points, z_layers=20, theta_bins=12, threshold=0.12):
         'axis_origin': centroid.astype(np.float32),
         'pc1_score': float(pc1_score),
         'pc2_score': float(pc2_score),
+        'pc3_score': float(pc3_score),
         'best_pc': best_idx
     }
 
-    print(f"[轴对称检测] score={best_score:.4f} (PC1={pc1_score:.4f}, PC2={pc2_score:.4f}), "
-          f"best={'PC1' if best_idx == 0 else 'PC2'}, "
+    print(f"[轴对称检测] score={best_score:.4f} "
+          f"(PC1={pc1_score:.4f}, PC2={pc2_score:.4f}, PC3={pc3_score:.4f}), "
+          f"best=PC{best_idx + 1}, "
           f"axisymmetric={is_axi} (threshold={threshold})")
 
     return result

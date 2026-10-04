@@ -1,6 +1,25 @@
-Flask>=2.0.1
-numpy>=1.21.0
-open3d>=0.16.0
-scipy>=1.7.0
-torch>=1.9.0
-torchvision>=0.10.0
+# Web API
+Flask>=2.2,<4
+Flask-Cors>=3.0.10
+
+# Point-cloud processing
+numpy>=1.21
+open3d>=0.16
+scipy>=1.7
+scikit-learn>=1.0
+
+# PoinTr inference
+torch>=1.9
+torchvision>=0.10
+PyYAML>=5.4
+easydict>=1.9
+timm>=0.4.5
+einops>=0.3
+transforms3d>=0.4
+
+# Utilities imported by the bundled PoinTr code
+h5py>=3.1
+matplotlib>=3.3
+opencv-python>=4.5
+tensorboardX>=2.2
+tqdm>=4.60

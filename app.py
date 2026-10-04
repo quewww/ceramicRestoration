@@ -16,7 +16,11 @@ from datetime import timedelta
 from contextlib import redirect_stdout
 
 from config import *
-from pointcloud_utils import read_point_cloud, write_point_cloud, downsample_point_cloud, convert_to_ply, count_points, estimate_chamfer_distance, detect_axisymmetry, revolve_reconstruction
+from pointcloud_utils import (
+    read_point_cloud, write_point_cloud, downsample_point_cloud, convert_to_ply,
+    count_points, estimate_chamfer_distance, detect_axisymmetry,
+    axisymmetric_completion
+)
 from enhanced_point_completion import repair_point_cloud, enhance_point_cloud
 from pointr_inference_pipeline import point_cloud_completion_pipeline
 from pfnet_inference import pfnet_completion
@@ -255,43 +259,161 @@ def _prepare_preview_pointcloud(input_path, completed_points, output_path):
     orig_pts = np.asarray(orig_pcd.points)
     print(f"[点云后处理] 原始点数: {len(orig_pts)}")
 
-    # 2) 对 predicted 部分做 SOR 去噪
+    # 2) 仅对 predicted 部分做温和 SOR 去噪。
+    # PoinTr 的缺口点通常比原始表面稀疏，过强的 SOR 会优先删除
+    # 缺口边缘和瓶口处的有效点，导致修复结果看起来仍然不完整。
     pred_pcd = o3d.geometry.PointCloud()
     pred_pcd.points = o3d.utility.Vector3dVector(completed_points.astype(np.float32))
-    pred_pcd, ind = pred_pcd.remove_statistical_outlier(nb_neighbors=30, std_ratio=1.5)
+    pred_pcd, ind = pred_pcd.remove_statistical_outlier(
+        nb_neighbors=min(20, max(5, len(completed_points) - 1)),
+        std_ratio=2.5
+    )
     pred_clean = np.asarray(pred_pcd.points)
     removed = len(completed_points) - len(pred_clean)
     print(f"[点云后处理] 预测点 SOR 去噪: {len(completed_points)} → {len(pred_clean)} (移除 {removed})")
 
-    # 3) 合并（原始在前）
-    combined_pts = np.vstack([orig_pts, pred_clean])
-    combined_pcd = o3d.geometry.PointCloud()
-    combined_pcd.points = o3d.utility.Vector3dVector(combined_pts.astype(np.float32))
-    print(f"[点云后处理] 合并后点数: {len(combined_pts)}")
-
-    # 4) 体素下采样（voxel_size 与 bbox 大小自适应）
-    bbox = combined_pcd.get_axis_aligned_bounding_box()
+    # 3) 只保留远离原始点的预测新增点，避免模型输出与原始点堆叠。
+    bbox = pred_pcd.get_axis_aligned_bounding_box()
     max_dim = max(bbox.get_extent())
     voxel_size = max(max_dim * 0.002, 1e-5)
-    combined_ds = combined_pcd.voxel_down_sample(voxel_size=voxel_size)
-    print(f"[点云后处理] 体素下采样 (voxel_size={voxel_size:.6f}): {len(combined_pts)} → {len(combined_ds.points)}")
+    original_tree = o3d.geometry.KDTreeFlann(orig_pcd)
+    distance_limit = (voxel_size * 0.75) ** 2
+    new_mask = []
+    for point in pred_clean:
+        _, _, distances = original_tree.search_knn_vector_3d(point, 1)
+        new_mask.append(not distances or distances[0] > distance_limit)
+    generated_pts = pred_clean[np.asarray(new_mask, dtype=bool)]
 
-    # 5) 轻度二次去噪
-    combined_ds, ind2 = combined_ds.remove_statistical_outlier(nb_neighbors=20, std_ratio=1.6)
-    final_pts = np.asarray(combined_ds.points)
-    print(f"[点云后处理] 最终点数: {len(final_pts)}")
+    generated_pcd = o3d.geometry.PointCloud()
+    generated_pcd.points = o3d.utility.Vector3dVector(generated_pts.astype(np.float32))
+    # 只在预测点异常密集时降采样。正常情况下保留模型输出，避免
+    # 体素采样把缺口边缘的细点和局部轮廓删掉。
+    if len(generated_pts) > 12000:
+        generated_ds = generated_pcd.voxel_down_sample(voxel_size=voxel_size)
+        generated_pts = np.asarray(generated_ds.points)
+    final_pts = np.vstack([orig_pts, generated_pts]).astype(np.float32)
+    print(f"[点云后处理] 过滤重合预测点: {len(pred_clean)} → {len(generated_pts)}")
+    print(f"[点云后处理] 原始点保持不变，最终点数: {len(final_pts)}")
 
     # 6) 写出预览点云
-    o3d.io.write_point_cloud(output_path, combined_ds, write_ascii=False)
+    final_pcd = o3d.geometry.PointCloud()
+    final_pcd.points = o3d.utility.Vector3dVector(final_pts)
+    o3d.io.write_point_cloud(output_path, final_pcd, write_ascii=False)
     print(f"[点云后处理] 预览点云已保存: {output_path}")
 
     return final_pts
 
 
+def _is_shallow_rotational_object(points):
+    """识别适合几何补全的浅碗/盘类输入，避免替换花瓶的模型流程。"""
+    extents = np.ptp(points, axis=0)
+    largest = float(np.max(extents))
+    smallest = float(np.min(extents))
+    if largest <= 1e-8:
+        return False
+
+    # 浅碗通常有一个明显较小的轴向尺寸；花瓶的高度不会满足这个条件。
+    return smallest / largest <= 0.40 and len(points) >= 500
+
+
+def _complete_shallow_rotational_object(points):
+    """估计浅碗轴线，并按高度层补全缺失轮廓。"""
+    center = np.mean(points, axis=0)
+    centered = points - center
+    covariance = centered.T @ centered / max(len(points) - 1, 1)
+    _, eigenvectors = np.linalg.eigh(covariance)
+    pca_axis = eigenvectors[:, 0]
+
+    axis_det = detect_axisymmetry(points, threshold=1.0)
+    axis_vector = axis_det['axis_vector']
+    if np.dot(axis_vector, pca_axis) < 0:
+        axis_vector = -axis_vector
+
+    # 用底部切片修正轴心位置，减少“整圈偏到一侧”的问题。
+    axis_vector = axis_vector / np.linalg.norm(axis_vector)
+    provisional_height = centered @ axis_vector
+    bottom_mask = provisional_height <= np.percentile(provisional_height, 12)
+    axis_origin = center.copy()
+    if int(bottom_mask.sum()) >= 20:
+        from pointcloud_utils import _build_local_frame
+        x_axis, y_axis, _, _ = _build_local_frame(axis_vector)
+        bottom_centered = points[bottom_mask] - center
+        dx = float(np.median(bottom_centered @ x_axis))
+        dy = float(np.median(bottom_centered @ y_axis))
+        axis_origin = center + dx * x_axis + dy * y_axis
+
+    completed = axisymmetric_completion(
+        points,
+        axis_vector=axis_vector,
+        axis_origin=axis_origin,
+        n_z=96,
+        n_theta=72,
+        min_points_per_layer=6
+    )
+    return completed
+
+
+def _complete_rotational_supplement(points):
+    """为轴对称且非浅盘类物体生成少量缺失角度补点，作为 PoinTr 的保守补充。"""
+    extents = np.ptp(points, axis=0)
+    ordered = np.sort(extents)
+    if ordered[-1] <= 1e-8:
+        return None
+
+    # 浅碗/盘已有独立流程；这里仅处理有明显高度轴的瓶、罐等物体。
+    if ordered[-1] / max(ordered[-2], 1e-8) < 1.35:
+        return None
+
+    axis_info = detect_axisymmetry(points, threshold=0.08)
+    if not axis_info['is_axisymmetric'] or axis_info['score'] > 0.08:
+        print(
+            f"[旋转补充] 轴对称置信度不足，跳过补点: "
+            f"score={axis_info['score']:.4f}"
+        )
+        return None
+
+    axis_vector = axis_info['axis_vector']
+    axis_vector = axis_vector / max(np.linalg.norm(axis_vector), 1e-8)
+    center = np.mean(points, axis=0)
+    centered = points - center
+    heights = centered @ axis_vector
+
+    from pointcloud_utils import _build_local_frame
+    x_axis, y_axis, _, _ = _build_local_frame(axis_vector)
+    bottom_mask = heights <= np.percentile(heights, 12)
+    axis_origin = center.copy()
+    if int(bottom_mask.sum()) >= 20:
+        axis_origin = (
+            center
+            + float(np.median(centered[bottom_mask] @ x_axis)) * x_axis
+            + float(np.median(centered[bottom_mask] @ y_axis)) * y_axis
+        )
+
+    completed = axisymmetric_completion(
+        points,
+        axis_vector=axis_vector,
+        axis_origin=axis_origin,
+        n_z=128,
+        n_theta=96,
+        min_points_per_layer=8
+    )
+    if len(completed) <= len(points):
+        return None
+
+    supplement = completed[len(points):].astype(np.float32)
+    print(
+        f"[旋转补充] 轴对称评分={axis_info['score']:.4f}，"
+        f"新增缺失角度点: {len(supplement)}"
+    )
+    return supplement
+
+
 def run_point_completion(input_path, output_dir, model_type='pointr', reconstruction_mode='axis_auto'):
     """
-    调用点云补全模型：始终先输出并返回「合并+清洗后的预览点云」，
-    仅在满足条件时（用户明确请求或轴对称检测通过）才生成网格化。
+    调用点云补全模型并生成前端预览结果。
+
+    自动重建和仅点云模式都以模型补全为主；原始点云始终保留，
+    实体和线框生成由后续阶段处理。
 
     Args:
         input_path: 输入点云文件路径
@@ -340,143 +462,78 @@ def run_point_completion(input_path, output_dir, model_type='pointr', reconstruc
     try:
         os.makedirs(output_dir, exist_ok=True)
 
-        import torch
-        device = 'cuda' if torch.cuda.is_available() else 'cpu'
-        print(f"使用设备: {device}")
-        print(f"使用模型: {model_type}")
-
         original_filename = os.path.basename(input_path)
         name_without_ext = os.path.splitext(original_filename)[0]
         processed_filename = f"{name_without_ext}_completed.ply"
         output_path = os.path.join(output_dir, processed_filename)
 
-        if model_type == 'pointr':
-            if not os.path.exists(CKPT_PATH):
-                raise Exception("PoinTr预训练模型文件不存在")
+        original_points, _ = read_point_cloud(input_path)
+        geometric_completion = None
+        if reconstruction_mode == 'axis_auto' and _is_shallow_rotational_object(original_points):
+            print("[重建] 检测到浅碗/盘类形状，优先补全缺失角度...")
+            geometric_completion = _complete_shallow_rotational_object(original_points)
 
-            completed_points = point_cloud_completion_pipeline(
-                input_ply_path=input_path,
-                output_ply_path=output_path,
-                device=device
-            )
-            if completed_points is None:
-                raise Exception("PoinTr点云补全失败")
-
-        elif model_type == 'pfnet':
-            PFNET_CKPT = 'PoinTr/ckpts/point_netG90.pth'
-            if not os.path.exists(PFNET_CKPT):
-                raise Exception("PF-Net预训练模型不存在")
-
-            completed_points = pfnet_completion(
-                input_ply_path=input_path,
-                output_ply_path=output_path,
-                device=device
-            )
-            if completed_points is None:
-                raise Exception("PF-Net点云补全失败")
-
+        if geometric_completion is not None:
+            completed_points = geometric_completion
+            preview_pts = geometric_completion
+            write_point_cloud(preview_pts, output_path)
+            print("[重建] 浅碗几何补全完成，跳过全局模型输出")
         else:
-            raise Exception(f"未知的模型类型: {model_type}")
+            import torch
+            device = 'cuda' if torch.cuda.is_available() else 'cpu'
+            print(f"使用设备: {device}")
+            print(f"使用模型: {model_type}")
 
-        # ===== 点云后处理（始终执行，生成前端预览用 .ply）=====
-        print("[点云后处理] 开始生成预览点云...")
-        preview_pts = _prepare_preview_pointcloud(input_path, completed_points, output_path)
+            if model_type == 'pointr':
+                if not os.path.exists(CKPT_PATH):
+                    raise Exception("PoinTr预训练模型文件不存在")
+                completed_points = point_cloud_completion_pipeline(
+                    input_ply_path=input_path,
+                    output_ply_path=output_path,
+                    device=device
+                )
+            elif model_type == 'pfnet':
+                PFNET_CKPT = 'PoinTr/ckpts/point_netG90.pth'
+                if not os.path.exists(PFNET_CKPT):
+                    raise Exception("PF-Net预训练模型不存在")
+                completed_points = pfnet_completion(
+                    input_ply_path=input_path,
+                    output_ply_path=output_path,
+                    device=device
+                )
+            else:
+                raise Exception(f"未知的模型类型: {model_type}")
+
+            if completed_points is None:
+                raise Exception(f"{model_type} 点云补全失败")
+
+            if reconstruction_mode == 'axis_auto' and model_type == 'pointr':
+                rotational_supplement = _complete_rotational_supplement(original_points)
+                if rotational_supplement is not None:
+                    completed_points = np.vstack([
+                        completed_points,
+                        rotational_supplement
+                    ]).astype(np.float32)
+                    print(
+                        f"[重建] 已将旋转轮廓补点合并到 PoinTr 输出，"
+                        f"当前模型点数: {len(completed_points)}"
+                    )
+
+            print("[点云后处理] 开始生成预览点云...")
+            preview_pts = _prepare_preview_pointcloud(input_path, completed_points, output_path)
 
         result['output_path'] = output_path
         result['success'] = True
 
-        # ===== 条件网格化 =====
-        should_generate_mesh = False
-        try:
-            print(f"[重建] 重建模式: {reconstruction_mode}")
-
-            if reconstruction_mode == 'point_only':
-                print("[重建] 仅点云预览，跳过网格生成")
-
-            elif reconstruction_mode == 'poisson':
-                print("[重建] 用户明确请求 Poisson 网格")
-                should_generate_mesh = True
-                _do_poisson_reconstruction(output_path, output_dir, name_without_ext, result, preview_pts)
-
-            elif reconstruction_mode == 'axis_auto':
-                # 先检测轴对称
-                print("[重建] 自动检测轴对称...")
-                axis_det = detect_axisymmetry(preview_pts, threshold=0.12)
-                result['axisymmetry_info']['detected'] = axis_det['is_axisymmetric']
-                result['axisymmetry_info']['score'] = axis_det['score']
-                print(f"[重建] 轴对称检测: {axis_det['is_axisymmetric']} (score={axis_det['score']:.4f})")
-
-                if axis_det['is_axisymmetric']:
-                    # 检测通过 → 旋转重建
-                    print("[重建] 检测到轴对称，执行旋转轮廓重建...")
-                    should_generate_mesh = True
-                    revolve_result = revolve_reconstruction(
-                        preview_pts, axis_vector=axis_det['axis_vector'],
-                        axis_origin=axis_det['axis_origin'],
-                        n_z=128, n_theta=128,
-                        seal_bottom=True, seal_top=True
-                    )
-                    if revolve_result['success'] and revolve_result['mesh'] is not None:
-                        mesh = revolve_result['mesh']
-                        mesh_filename = f"{name_without_ext}_revolved.obj"
-                        mesh_path = os.path.join(output_dir, mesh_filename)
-                        o3d.io.write_triangle_mesh(mesh_path, mesh)
-                        result['mesh_path'] = mesh_path
-                        result['axisymmetry_info']['mesh_generated'] = True
-                        print(f"[重建] 旋转重建成功: {len(mesh.vertices)} 顶点, {len(mesh.triangles)} 三角面")
-                    else:
-                        print("[重建] 旋转重建失败，不自动回退 Poisson")
-                        should_generate_mesh = False
-                        result['axisymmetry_info']['mesh_generated'] = False
-                else:
-                    # 检测失败 → 不自动生成网格，仅返回点云
-                    print("[重建] 非轴对称，不自动生成网格（仅返回点云）")
-                    result['axisymmetry_info']['mesh_generated'] = False
-
-            elif reconstruction_mode == 'axis_force':
-                print("[重建] 强制旋转重建...")
-                should_generate_mesh = True
-                centroid = np.mean(preview_pts, axis=0)
-                centered = preview_pts - centroid
-                cov = centered.T @ centered / (len(preview_pts) - 1)
-                eigenvalues, eigenvectors = np.linalg.eigh(cov)
-                axis_vec = eigenvectors[:, -1]
-                result['axisymmetry_info']['detected'] = True
-                result['axisymmetry_info']['score'] = 0.0
-
-                revolve_result = revolve_reconstruction(
-                    preview_pts, axis_vector=axis_vec, axis_origin=centroid,
-                    n_z=128, n_theta=128,
-                    seal_bottom=True, seal_top=True
-                )
-                if revolve_result['success'] and revolve_result['mesh'] is not None:
-                    mesh = revolve_result['mesh']
-                    mesh_filename = f"{name_without_ext}_revolved.obj"
-                    mesh_path = os.path.join(output_dir, mesh_filename)
-                    o3d.io.write_triangle_mesh(mesh_path, mesh)
-                    result['mesh_path'] = mesh_path
-                    result['axisymmetry_info']['mesh_generated'] = True
-                    print(f"[重建] 强制旋转重建成功: {len(mesh.vertices)} 顶点")
-                else:
-                    print("[重建] 强制旋转重建失败")
-                    result['axisymmetry_info']['mesh_generated'] = False
-
-            elif reconstruction_mode == 'axis_off':
-                print("[重建] 关闭轴对称，运行 Poisson")
-                should_generate_mesh = True
-                _do_poisson_reconstruction(output_path, output_dir, name_without_ext, result, preview_pts)
-
-        except Exception as e:
-            print(f"[重建] 重建流程异常({e})，不影响点云输出")
-            import traceback
-            traceback.print_exc()
-            result['mesh_path'] = ''
-            result['axisymmetry_info']['mesh_generated'] = False
+        # ===== 暂停实体和线框生成，只验证点云修复结果 =====
+        print(f"[重建] 模式: {reconstruction_mode}，当前只输出点云")
+        result['mesh_path'] = ''
+        result['axisymmetry_info']['mesh_generated'] = False
 
         result['time_elapsed'] = time.time() - start_time
         print(f"推理完成，耗时: {result['time_elapsed']:.2f}秒")
         print(f"预览点云点数: {len(preview_pts)}")
-        print(f"网格生成: {result['axisymmetry_info']['mesh_generated']}")
+        print("[重建] 网格生成已暂时停用")
 
     except Exception as e:
         print(f"推理过程出错: {e}")
